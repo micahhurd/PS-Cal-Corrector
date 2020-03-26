@@ -550,19 +550,16 @@ def checkUncBudget(budgetTxtFile,uncVal,uncFreq,uncMsmt=0.0):
 
 
         if (uncFreq >= startFreq) and (uncFreq <= stopFreq):
-            print(2)
 
             if pRangePresent == True:
                 tempList = rangeList[index].split(">")
                 startPow = float(tempList[0])
                 stopPow = float(tempList[1])
-                print(3)
 
                 if (uncMsmt >= startPow) and (uncMsmt <= stopPow):
                     tempUncListVal = uncList[index]
-                    print(4)
+
                     if uncVal < tempUncListVal:
-                        print(5)
                         uncVal = tempUncListVal
                         return uncVal
             else:
@@ -587,23 +584,22 @@ cwd = os.getcwd() + "\\"
 clear()
 userInterfaceHeader(programName, version, cwd, logFile)
 
-print("__________  _________         _________     _____  .____ ")
-print("\______   \/   _____/         \_   ___ \   /  _  \ |    |")
-print(" |     ___/\_____  \   ______ /    \  \/  /  /_\  \|    |")
-print(" |    |    /        \ /_____/ \     \____/    |    \    |___")
-print(" |____|   /_______  /          \______  /\____|__  /_______ \\")
-print("                  \/                  \/         \/        \/")
-print("   _____                                 .___.__  __")
-print("  /  _  \   ____  ___________   ____   __| _/|__|/  |_  ___________")
-print(" /  /_\  \_/ ___\/ ___\_  __ \_/ __ \ / __ | |  \   __\/  _ \_  __ \\")
-print("/    |    \  \__\  \___|  | \/\  ___// /_/ | |  ||  | (  <_> )  | \/")
-print("\____|__  /\___  >___  >__|    \___  >____ | |__||__|  \____/|__| ")
+print(" ____  ____         ____      _              ")
+print("|  _ \/ ___|       / ___|__ _| |             ")
+print("| |_) \___ \ _____| |   / _` | |             ")
+print("|  __/ ___) |_____| |__| (_| | |             ")
+print("|_|   |____/       \____\__,_|_|")
+print("  ____                         _")
+print(" / ___|___  _ __ _ __ ___  ___| |_ ___  _ __")
+print("| |   / _ \| '__| '__/ _ \/ __| __/ _ \| '__|")
+print("| |__| (_) | |  | | |  __/ (__| || (_) | |")
+print(" \____\___/|_|  |_|  \___|\___|\__\___/|_| ")
 print("=======================================================================")
 
 
 # Pull in settings from the config file ------------
-configFile = "accreditor.cfg"
-a = 1
+configFile = "PS-Cal-Corrector.cfg"
+
 
 debug = readConfigFile(configFile, "debug", "int")
 PS_CalResultsFolder = readConfigFile(configFile, "PS_CalResultsFolder")
@@ -635,6 +631,10 @@ else:
     tempList = xmlFilePath.split("/")
     xmlFile = tempList[-1]
 
+# Read-in the XML file data to a list
+xmlData = readTxtFile(xmlFilePath)
+
+
 # Setup to allow for interpolation to occur via the alternate reference method (using the Standard's data as the ref)
 # The alternate method was introduced later, so the code below only massages the xmlFile data into a state where
 # it can be interpolated by the normal method. Thereafter the normal method is used.
@@ -647,7 +647,7 @@ if interpReferenceMethod == 2:
         extensionType = "*.XML"
         standardDataFile = getFilePath(extensionType, initialDir=PS_CalResultsFolder, extensionDescription="PSCAL XML")
 
-    stdXMLData = readXMLFile(standardDataFile)
+    stdXMLData = readTxtFile(standardDataFile)
 
     # Pull the frequency of all available cal points from the standard data
     stdFreqList = []
@@ -738,8 +738,6 @@ dest = shutil.copyfile(xmlFilePath, archiveFilePath)
 # ===================================================================================================================
 #                                    Check Against Uncertainty Budget Files
 # ===================================================================================================================
-# Read-in the XML file data to a list
-xmlData = readTxtFile(xmlFilePath)
 
 for index, line in enumerate(xmlData):
 
@@ -785,7 +783,6 @@ for index, line in enumerate(xmlData):
 
         # Perform the uncertainty value lookup
         newUncValue = checkUncBudget(rhoBudgetTxtFile, rhoUnc, freqValue, rhoValue)
-        print("newUncValue = {}".format(newUncValue))
 
         # Apply the uncertainty value returned by the lookup
         counter = 0
@@ -842,7 +839,6 @@ for index, line in enumerate(xmlData):
 
         # Perform the uncertainty value lookup
         newUncValue = checkUncBudget(cfBudgetTxtFile, cfUnc, freqValue)
-        print("newUncValue = {}".format(newUncValue))
 
         # Apply the uncertainty value returned by the lookup
         counter = 0
@@ -898,7 +894,6 @@ for index, line in enumerate(xmlData):
         # Perform the uncertainty value lookup
         freqValue = 50_000_000                          # Hard-coded because linearity is always at 50 MHz
         newUncValue = checkUncBudget(linBudgetTxtFile, linUnc, freqValue, linValue)
-        print("newUncValue = {}".format(newUncValue))
 
         # Apply the uncertainty value returned by the lookup
         counter = 0
@@ -928,8 +923,8 @@ with open(xmlFilePath, 'w') as filehandle:
         # print(listItem)
         filehandle.write(listItem)
 
-print("")
-print("* * Uncertainty Lookup Completed * *")
+
+print("> Uncertainty lookup completed...")
 print("")
 
 
@@ -950,7 +945,6 @@ for index, line in enumerate(xmlData):
     secondWrapper = "</" + searchTerm + ">"
     if (firstWrapper in line) and (secondWrapper in line):
         value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
-        print("Prepped Line: {} and Value: {}".format(outputXMLstring, value))
 
         value = "PS-Cal Corrected"
 
@@ -963,12 +957,10 @@ for index, line in enumerate(xmlData):
     secondWrapper = "</" + searchTerm + ">"
     if (firstWrapper in line) and (secondWrapper in line):
         value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
-        print("Prepped Line: {} and Value: {}".format(outputXMLstring,value))
 
         value = str(setSigDigits(value, numberSigDigits))
 
         outputXMLstring = outputXMLstring.replace("val", value)
-        print(outputXMLstring)
         line = outputXMLstring + "\n"
 
     searchTerm = "Uncertainty"
@@ -976,12 +968,10 @@ for index, line in enumerate(xmlData):
     secondWrapper = "</" + searchTerm + ">"
     if (firstWrapper in line) and (secondWrapper in line):
         value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
-        print("Prepped Line: {} and Value: {}".format(outputXMLstring, value))
 
         value = str(setSigDigits(value, numberSigDigits))
 
         outputXMLstring = outputXMLstring.replace("val", value)
-        print(outputXMLstring)
         line = outputXMLstring + "\n"
 
     xmlDataNew.append(line)
@@ -992,8 +982,8 @@ with open(xmlFilePath, 'w') as filehandle:
         # print(listItem)
         filehandle.write(listItem)
 
-print("")
-print("* * Quantity of significant digits set to two * *")
+
+print("> Quantity of significant digits set to two...")
 print("")
 
 
@@ -1209,12 +1199,14 @@ with open(xmlFilePath, 'w') as filehandle:
         filehandle.write(listItem)
 
 
-print("")
-print("* * INTERPOLATION COMPLETED * *")
+
+print("> Interpolation check completed...")
 print("")
 print("Output file saved at: {}".format(xmlFilePath))
 print("")
+print("==============================================================")
 print("- - Open the XML file in PS-Cal to verify and save as PDF - -")
+print("==============================================================")
 print("")
 print("This program will close automatically in 5 seconds...")
 time.sleep(5)

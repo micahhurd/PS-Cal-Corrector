@@ -140,7 +140,7 @@
       </UUTHeader>
       <ProcedureHeader diffgr:id="ProcedureHeader1" msdata:rowOrder="0" diffgr:hasChanges="inserted">
         <ProcedureID>HP_EPC_18A</ProcedureID>
-        <ProcedureName>PS-Cal Accredited</ProcedureName>
+        <ProcedureName>PS-Cal Corrected</ProcedureName>
         <ProcedureRevision>1.1.0</ProcedureRevision>
         <ProcedureAuthor>Cal Lab Solutions</ProcedureAuthor>
       </ProcedureHeader>
