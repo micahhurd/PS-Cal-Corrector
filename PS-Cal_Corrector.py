@@ -603,6 +603,7 @@ print("=======================================================================")
 
 # Pull in settings from the config file ------------
 configFile = "accreditor.cfg"
+a = 1
 
 debug = readConfigFile(configFile, "debug", "int")
 PS_CalResultsFolder = readConfigFile(configFile, "PS_CalResultsFolder")
