@@ -600,16 +600,28 @@ print("=======================================================================")
 # Pull in settings from the config file ------------
 configFile = "PS-Cal-Corrector.cfg"
 
-
-debug = readConfigFile(configFile, "debug", "int")
-PS_CalResultsFolder = readConfigFile(configFile, "PS_CalResultsFolder")
-archivePath = readConfigFile(configFile, "archivePath")
-standardsDataFolder = readConfigFile(configFile, "standardsDataFolder")
-interpReferenceMethod = readConfigFile(configFile, "interpReferenceMethod", "int")
-numberSigDigits = readConfigFile(configFile, "numberSigDigits", "int")
-rhoBudgetTxtFile = readConfigFile(configFile, "rhoBudgetTxtFile")
-cfBudgetTxtFile = readConfigFile(configFile, "cfBudgetTxtFile")
-linBudgetTxtFile = readConfigFile(configFile, "linBudgetTxtFile")
+try:
+    debug = readConfigFile(configFile, "debug", "int")
+    writeLog("Debug on or off: {}.".format(debug), logFile)
+    PS_CalResultsFolder = readConfigFile(configFile, "PS_CalResultsFolder")
+    writeLog("PS_CalResultsFolder: {}.".format(PS_CalResultsFolder), logFile)
+    archivePath = readConfigFile(configFile, "archivePath")
+    writeLog("archivePath: {}.".format(archivePath), logFile)
+    standardsDataFolder = readConfigFile(configFile, "standardsDataFolder")
+    writeLog("standardsDataFolder: {}.".format(standardsDataFolder), logFile)
+    interpReferenceMethod = readConfigFile(configFile, "interpReferenceMethod", "int")
+    writeLog("Interpolation method: {}.".format(interpReferenceMethod), logFile)
+    numberSigDigits = readConfigFile(configFile, "numberSigDigits", "int")
+    writeLog("Number of significant digits to correct to: {}.".format(numberSigDigits), logFile)
+    rhoBudgetTxtFile = readConfigFile(configFile, "rhoBudgetTxtFile")
+    writeLog("Location of Rho budget: {}.".format(rhoBudgetTxtFile), logFile)
+    cfBudgetTxtFile = readConfigFile(configFile, "cfBudgetTxtFile")
+    writeLog("Location of Cal Factor budget: {}.".format(cfBudgetTxtFile), logFile)
+    linBudgetTxtFile = readConfigFile(configFile, "linBudgetTxtFile")
+    writeLog("Location of linearity budget: {}.".format(linBudgetTxtFile), logFile)
+except:
+    writeLog("Failed to load configuration file variables. Check that the file is present.", logFile)
+    exit()
 
 
 # Set debug flag
@@ -617,6 +629,7 @@ if debug == 1:
     debugBool = True
 else:
     debugBool = False
+writeLog("Debug flag set to {}.".format(debugBool), logFile)
 
 # Load XML file for interpolation ---------------------------------------------
 if debugBool == True:
@@ -626,6 +639,7 @@ else:
     print("Use the file dialogue window to select the PS-Cal XML to be corrected...")
     extensionType = "*.XML"
     xmlFilePath = getFilePath(extensionType,initialDir=PS_CalResultsFolder,extensionDescription="PSCAL XML")
+    writeLog("User selected the following file for correction: {}.".format(xmlFilePath), logFile)
 
     # Split out the xmlFilePath to obtain the xmlFile name itself
     tempList = xmlFilePath.split("/")
@@ -648,6 +662,7 @@ if interpReferenceMethod == 2:
         standardDataFile = getFilePath(extensionType, initialDir=PS_CalResultsFolder, extensionDescription="PSCAL XML")
 
     stdXMLData = readTxtFile(standardDataFile)
+    writeLog("User selected the following standard cal data file: {}.".format(stdXMLData), logFile)
 
     # Pull the frequency of all available cal points from the standard data
     stdFreqList = []
@@ -711,6 +726,7 @@ if tempBool == True:
 else:
     os.mkdir(archivePath)
 
+
 # Check if the file has already been backed up; if yes then create a unique name that will not overwrite the existing
 # file
 archiveFilePath = archivePath + xmlFile
@@ -734,10 +750,12 @@ while tempBool == True:
 
 # Backup of the original file
 dest = shutil.copyfile(xmlFilePath, archiveFilePath)
+writeLog("Created backup of the original DUT calibration file at: {}.".format(archiveFilePath), logFile)
 
 # ===================================================================================================================
 #                                    Check Against Uncertainty Budget Files
 # ===================================================================================================================
+writeLog("Started uncertainty budget check.", logFile)
 
 for index, line in enumerate(xmlData):
 
@@ -923,7 +941,7 @@ with open(xmlFilePath, 'w') as filehandle:
         # print(listItem)
         filehandle.write(listItem)
 
-
+writeLog("Wrote results of the uncertainty budget lookup to the instrument file at: {}".format(xmlFilePath), logFile)
 print("> Uncertainty lookup completed...")
 print("")
 
@@ -932,6 +950,7 @@ print("")
 # ===================================================================================================================
 #                                         Check Significant Figures
 # ===================================================================================================================
+writeLog("Starting check of significant figures", logFile)
 
 # Read-in the XML file data to a list
 xmlDataNew = []
@@ -982,7 +1001,7 @@ with open(xmlFilePath, 'w') as filehandle:
         # print(listItem)
         filehandle.write(listItem)
 
-
+writeLog("Wrote results of the significant figures correction to the instrument file at: {}".format(xmlFilePath), logFile)
 print("> Quantity of significant digits set to two...")
 print("")
 
@@ -990,6 +1009,7 @@ print("")
 # ===================================================================================================================
 #                                  Perform Interpolation of Data (if required)
 # ===================================================================================================================
+writeLog("Starting interpolation check of cal factor values, if required", logFile)
 
 # Read-in the XML file data to a list
 xmlDataNew = []
@@ -1001,6 +1021,7 @@ cfList = []
 uncList = []
 dbList = []
 
+writeLog("Read in the existing Rho and CF points", logFile)
 # Read in the existing Rho and CF data
 for index, line in enumerate(xmlData):
 
@@ -1091,10 +1112,11 @@ for index, freq in enumerate(rhoFreqList):
         tempValue = dbListNew[tempIndex]
         yValsDb.append(tempValue)
 
-
+writeLog("Performing interpolation for any CF points which require it", logFile)
 # Perform interpolation process for all missing points
 performInterpolation()
 
+writeLog("Copying existing CF XML data block for use in creating interpolated CF data points", logFile)
 # Create Cal Factor Points XML Template by copying existing CF XML block into list
 tempBool = False
 cfBlockList = []
@@ -1117,7 +1139,7 @@ for index, line in enumerate(xmlData):
 cfBlockLength = len(cfBlockList)
 
 
-
+writeLog("Applying XML CF data chunk to the existing XML data as necessary", logFile)
 # Determine where an interpolated CF block needs to be entered into the existing data
 xmlDataNew = xmlData.copy()
 for index, element in enumerate(requiredInterpList):
@@ -1155,6 +1177,7 @@ for index, element in enumerate(requiredInterpList):
     # The original xmlData needs to be updated each time new data is added
     xmlData = xmlDataNew.copy()
 
+writeLog("Going through the XML data and updating the XML row order to accomodate the new CF data chunks", logFile)
 # Go through the XML data in the variable and update the row order of the CF data
 tempBool = False
 cfBlockList = []
@@ -1197,8 +1220,11 @@ with open(xmlFilePath, 'w') as filehandle:
     for listItem in xmlDataNew:
         # print(listItem)
         filehandle.write(listItem)
+writeLog("Wrote interpolated data to XML file at: {}".format(xmlFilePath), logFile)
 
 
+writeLog("CF Interpolation process completed.", logFile)
+writeLog("Program output saved to: {}.".format(xmlFilePath), logFile)
 
 print("> Interpolation check completed...")
 print("")
@@ -1209,5 +1235,6 @@ print("- - Open the XML file in PS-Cal to verify and save as PDF - -")
 print("==============================================================")
 print("")
 print("This program will close automatically in 5 seconds...")
+writeLog("Program ended.", logFile)
 time.sleep(5)
 sys.exit()
