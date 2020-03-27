@@ -260,7 +260,7 @@
         <Frequency>50,000,000</Frequency>
         <Rho>0.0320069974762937</Rho>
         <Rho_Limit>0.095022624</Rho_Limit>
-        <Rho_Uncertainty>0.0052</Rho_Uncertainty>
+        <Rho_Uncertainty>0.011</Rho_Uncertainty>
         <Magnitude>0.0320760123432</Magnitude>
         <Phase>-44.4160171816</Phase>
         <Pass_Fail>Pass</Pass_Fail>
@@ -1056,9 +1056,9 @@
       </CalFactor>
       <Linearity diffgr:id="Linearity1" msdata:rowOrder="0" diffgr:hasChanges="inserted" msdata:hiddenIndex="0" msdata:hiddenRange="-14">
         <Nominal_Power>-36.000</Nominal_Power>
-        <Measured_Power>-40.9577592</Measured_Power>
+        <Measured_Power>-35.9577592</Measured_Power>
         <Limits>+/- 3</Limits>
-        <Uncertainty>1.4</Uncertainty>
+        <Uncertainty>0.96</Uncertainty>
         <Pass_Fail>Pass</Pass_Fail>
         <UploadOnly>No</UploadOnly>
         <RADC>- -</RADC>
@@ -1070,7 +1070,7 @@
         <Nominal_Power>-35.000</Nominal_Power>
         <Measured_Power>-34.9694549</Measured_Power>
         <Limits>+/- 3</Limits>
-        <Uncertainty>1</Uncertainty>
+        <Uncertainty>0.96</Uncertainty>
         <Pass_Fail>Pass</Pass_Fail>
         <UploadOnly>No</UploadOnly>
         <RADC>- -</RADC>
@@ -1178,7 +1178,7 @@
         <Nominal_Power>-26.000</Nominal_Power>
         <Measured_Power>-25.9615452</Measured_Power>
         <Limits>+/- 3</Limits>
-        <Uncertainty>1</Uncertainty>
+        <Uncertainty>0.96</Uncertainty>
         <Pass_Fail>Pass</Pass_Fail>
         <UploadOnly>No</UploadOnly>
         <RADC>- -</RADC>

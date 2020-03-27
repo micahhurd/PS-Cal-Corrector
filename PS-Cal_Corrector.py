@@ -1,7 +1,7 @@
 # PS-Cal Corrector
 # By Micah Hurd
 programName = "PS-Cal Corrector"
-version = 1.1
+version = 1.2
 
 import re
 import math
@@ -95,6 +95,24 @@ def create_log(log_file):
     f = open(log_file, "w+")
 
     f.close()
+    return 0
+
+def writeLog(analysis, logFile):
+    import datetime
+    import csv
+    write_mode = "a"
+
+    currentDT = datetime.datetime.now()
+
+    date_time = currentDT.strftime("%Y-%m-%d %H:%M:%S")
+
+    with open(logFile, mode=write_mode, newline='') as result_file:
+        result_writer = csv.writer(result_file, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
+
+        result_writer.writerow([date_time, analysis])
+
+    result_file.close()
+
     return 0
 
 def userInterfaceHeader(program, version, cwd, logFile, msg=""):
@@ -595,7 +613,7 @@ print("| |   / _ \| '__| '__/ _ \/ __| __/ _ \| '__|")
 print("| |__| (_) | |  | | |  __/ (__| || (_) | |")
 print(" \____\___/|_|  |_|  \___|\___|\__\___/|_| ")
 print("=======================================================================")
-
+time.sleep(2)
 
 # Pull in settings from the config file ------------
 configFile = "PS-Cal-Corrector.cfg"
@@ -632,18 +650,20 @@ else:
 writeLog("Debug flag set to {}.".format(debugBool), logFile)
 
 # Load XML file for interpolation ---------------------------------------------
-if debugBool == True:
-    xmlFile = "test3.XML"
-    xmlFilePath = cwd + xmlFile
-else:
-    print("Use the file dialogue window to select the PS-Cal XML to be corrected...")
-    extensionType = "*.XML"
-    xmlFilePath = getFilePath(extensionType,initialDir=PS_CalResultsFolder,extensionDescription="PSCAL XML")
-    writeLog("User selected the following file for correction: {}.".format(xmlFilePath), logFile)
+# if debugBool == True:
+#     xmlFile = "test3.XML"
+#     xmlFilePath = cwd + xmlFile
+# else:
+print("")
+print("Use the file dialogue window to select the PS-Cal XML to be corrected...")
+time.sleep(2)
+extensionType = "*.XML"
+xmlFilePath = getFilePath(extensionType,initialDir=PS_CalResultsFolder,extensionDescription="PSCAL XML")
+writeLog("User selected the following file for correction: {}.".format(xmlFilePath), logFile)
 
-    # Split out the xmlFilePath to obtain the xmlFile name itself
-    tempList = xmlFilePath.split("/")
-    xmlFile = tempList[-1]
+# Split out the xmlFilePath to obtain the xmlFile name itself
+tempList = xmlFilePath.split("/")
+xmlFile = tempList[-1]
 
 # Read-in the XML file data to a list
 xmlData = readTxtFile(xmlFilePath)
@@ -657,12 +677,14 @@ if interpReferenceMethod == 2:
         standardDataFile = "3538.XML"
         xmlFilePath = cwd + xmlFile
     else:
+        time.sleep(2)
         print("Use the file dialogue window to select the XML data file of the standard used for the sensor cal...")
+        time.sleep(2)
         extensionType = "*.XML"
-        standardDataFile = getFilePath(extensionType, initialDir=PS_CalResultsFolder, extensionDescription="PSCAL XML")
+        standardDataFile = getFilePath(extensionType, initialDir=standardsDataFolder, extensionDescription="PSCAL XML")
 
     stdXMLData = readTxtFile(standardDataFile)
-    writeLog("User selected the following standard cal data file: {}.".format(stdXMLData), logFile)
+    writeLog("User selected the following standard cal data file: {}.".format(standardDataFile), logFile)
 
     # Pull the frequency of all available cal points from the standard data
     stdFreqList = []
@@ -770,6 +792,8 @@ for index, line in enumerate(xmlData):
             counter += 1
             index2 = index + counter
             line2 = xmlData[index2]
+            if debugBool == True:
+                writeLog("Uncertainy Lookup Line2: {}".format(line2), logFile)
 
             searchTerm = "Frequency"
             firstWrapper = "<" + searchTerm + ">"
@@ -783,45 +807,55 @@ for index, line in enumerate(xmlData):
             searchTerm = "Rho"
             firstWrapper = "<" + searchTerm + ">"
             secondWrapper = "</" + searchTerm + ">"
-            if (firstWrapper in line2) and (secondWrapper in line2):
-                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
-                rhoValue = float(value)
+            try:
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    rhoValue = float(value)
+            except:
+                writeLog("Could note parse Rho Measured Value: value at frequency: {} Hz".format(freqValue), logFile)
+                break
 
-            searchTerm = "Rho_Uncertainty"
-            firstWrapper = "<" + searchTerm + ">"
-            secondWrapper = "</" + searchTerm + ">"
-            if (firstWrapper in line2) and (secondWrapper in line2):
-                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
-                rhoUnc = float(value)
+            try:
+                searchTerm = "Rho_Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    rhoUnc = float(value)
+            except:
+                writeLog("Could note parse Rho Uncertainty value at frequency: {} Hz".format(freqValue), logFile)
+                break
 
             if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
                 break
 
 
+        try:
+            # Perform the uncertainty value lookup
+            newUncValue = checkUncBudget(rhoBudgetTxtFile, rhoUnc, freqValue, rhoValue)
 
-        # Perform the uncertainty value lookup
-        newUncValue = checkUncBudget(rhoBudgetTxtFile, rhoUnc, freqValue, rhoValue)
+            # Apply the uncertainty value returned by the lookup
+            counter = 0
+            while counter <= 8:
+                counter += 1
+                index2 = index + counter
+                line2 = xmlData[index2]
 
-        # Apply the uncertainty value returned by the lookup
-        counter = 0
-        while counter <= 8:
-            counter += 1
-            index2 = index + counter
-            line2 = xmlData[index2]
-
-            searchTerm = "Rho_Uncertainty"
-            firstWrapper = "<" + searchTerm + ">"
-            secondWrapper = "</" + searchTerm + ">"
-            if (firstWrapper in line2) and (secondWrapper in line2):
-                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                searchTerm = "Rho_Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
 
 
-                value = str(newUncValue)
+                    value = str(newUncValue)
 
-                outputXMLstring = outputXMLstring.replace("val", value)
-                line = outputXMLstring + "\n"
-                xmlData[index2] = line
-                break
+                    outputXMLstring = outputXMLstring.replace("val", value)
+                    line = outputXMLstring + "\n"
+                    xmlData[index2] = line
+                    break
+        except:
+            writeLog("Rho budget lookup not performed at: {} Hz".format(freqValue), logFile)
 
 
     # Do uncertainty lookup for all CF data
@@ -845,40 +879,47 @@ for index, line in enumerate(xmlData):
                 value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
                 freqValue = float(value.replace(",", ""))
 
-            searchTerm = "Uncertainty"
-            firstWrapper = "<" + searchTerm + ">"
-            secondWrapper = "</" + searchTerm + ">"
-            if (firstWrapper in line2) and (secondWrapper in line2):
-                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
-                cfUnc = float(value)
+            try:
+                searchTerm = "Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    cfUnc = float(value)
+            except:
+                writeLog("Could note parse CF Uncertainty value at frequency: {} Hz".format(freqValue), logFile)
+                break
 
             if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
                 break
 
-        # Perform the uncertainty value lookup
-        newUncValue = checkUncBudget(cfBudgetTxtFile, cfUnc, freqValue)
+        try:
+            # Perform the uncertainty value lookup
+            newUncValue = checkUncBudget(cfBudgetTxtFile, cfUnc, freqValue)
 
-        # Apply the uncertainty value returned by the lookup
-        counter = 0
-        while counter <= 8:
-            counter += 1
-            index2 = index + counter
-            line2 = xmlData[index2]
+            # Apply the uncertainty value returned by the lookup
+            counter = 0
+            while counter <= 8:
+                counter += 1
+                index2 = index + counter
+                line2 = xmlData[index2]
 
-            searchTerm = "Uncertainty"
-            firstWrapper = "<" + searchTerm + ">"
-            secondWrapper = "</" + searchTerm + ">"
-            if (firstWrapper in line2) and (secondWrapper in line2):
-                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                searchTerm = "Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
 
-                value = str(newUncValue)
+                    value = str(newUncValue)
 
-                outputXMLstring = outputXMLstring.replace("val", value)
-                line = outputXMLstring + "\n"
-                xmlData[index2] = line
-                break
+                    outputXMLstring = outputXMLstring.replace("val", value)
+                    line = outputXMLstring + "\n"
+                    xmlData[index2] = line
+                    break
+        except:
+            writeLog("CF budget lookup not performed at: {} Hz".format(freqValue), logFile)
 
-    # Do uncertainty lookup for all CF data
+    # Do uncertainty lookup for all Linearity data
     searchHeaderStart = "<Linearity"
     searchHeaderEnd = "</Linearity>"
     if searchHeaderStart in line:
@@ -890,48 +931,60 @@ for index, line in enumerate(xmlData):
             index2 = index + counter
             line2 = xmlData[index2]
 
-            searchTerm = "Measured_Power"
-            firstWrapper = "<" + searchTerm + ">"
-            secondWrapper = "</" + searchTerm + ">"
-            if (firstWrapper in line2) and (secondWrapper in line2):
-                line2 = line2.replace(",", "")
-                # print("line2: {}".format(line2))
-                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
-                linValue = float(value.replace(",", ""))
+            try:
+                searchTerm = "Measured_Power"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    line2 = line2.replace(",", "")
+                    # print("line2: {}".format(line2))
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    linValue = float(value.replace(",", ""))
+            except:
+                writeLog("Could note parse Linearity Measured Power value at frequency: {} Hz".format(freqValue), logFile)
+                break
 
-            searchTerm = "Uncertainty"
-            firstWrapper = "<" + searchTerm + ">"
-            secondWrapper = "</" + searchTerm + ">"
-            if (firstWrapper in line2) and (secondWrapper in line2):
-                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
-                linUnc = float(value)
+            try:
+                searchTerm = "Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    linUnc = float(value)
+            except:
+                writeLog("Could note parse Linearity Uncertainty value at frequency: {} Hz".format(freqValue),
+                         logFile)
+                break
 
             if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
                 break
 
-        # Perform the uncertainty value lookup
-        freqValue = 50_000_000                          # Hard-coded because linearity is always at 50 MHz
-        newUncValue = checkUncBudget(linBudgetTxtFile, linUnc, freqValue, linValue)
+        try:
+            # Perform the uncertainty value lookup
+            freqValue = 50_000_000                          # Hard-coded because linearity is always at 50 MHz
+            newUncValue = checkUncBudget(linBudgetTxtFile, linUnc, freqValue, linValue)
 
-        # Apply the uncertainty value returned by the lookup
-        counter = 0
-        while counter <= 8:
-            counter += 1
-            index2 = index + counter
-            line2 = xmlData[index2]
+            # Apply the uncertainty value returned by the lookup
+            counter = 0
+            while counter <= 8:
+                counter += 1
+                index2 = index + counter
+                line2 = xmlData[index2]
 
-            searchTerm = "Uncertainty"
-            firstWrapper = "<" + searchTerm + ">"
-            secondWrapper = "</" + searchTerm + ">"
-            if (firstWrapper in line2) and (secondWrapper in line2):
-                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                searchTerm = "Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
 
-                value = str(newUncValue)
+                    value = str(newUncValue)
 
-                outputXMLstring = outputXMLstring.replace("val", value)
-                line = outputXMLstring + "\n"
-                xmlData[index2] = line
-                break
+                    outputXMLstring = outputXMLstring.replace("val", value)
+                    line = outputXMLstring + "\n"
+                    xmlData[index2] = line
+                    break
+        except:
+            writeLog("Linearity budget lookup not performed at: {} Hz".format(freqValue), logFile)
 
 
 
@@ -971,27 +1024,33 @@ for index, line in enumerate(xmlData):
         # print(outputXMLstring)
         line = outputXMLstring + "\n"
 
-    searchTerm = "Rho_Uncertainty"
-    firstWrapper = "<" + searchTerm + ">"
-    secondWrapper = "</" + searchTerm + ">"
-    if (firstWrapper in line) and (secondWrapper in line):
-        value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
+    try:
+        searchTerm = "Rho_Uncertainty"
+        firstWrapper = "<" + searchTerm + ">"
+        secondWrapper = "</" + searchTerm + ">"
+        if (firstWrapper in line) and (secondWrapper in line):
+            value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
 
-        value = str(setSigDigits(value, numberSigDigits))
+            value = str(setSigDigits(value, numberSigDigits))
 
-        outputXMLstring = outputXMLstring.replace("val", value)
-        line = outputXMLstring + "\n"
+            outputXMLstring = outputXMLstring.replace("val", value)
+            line = outputXMLstring + "\n"
+    except:
+        writeLog("Rho Uncertainty Significant Digits not corrected at XML file line: ".format(index), logFile)
 
-    searchTerm = "Uncertainty"
-    firstWrapper = "<" + searchTerm + ">"
-    secondWrapper = "</" + searchTerm + ">"
-    if (firstWrapper in line) and (secondWrapper in line):
-        value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
+    try:
+        searchTerm = "Uncertainty"
+        firstWrapper = "<" + searchTerm + ">"
+        secondWrapper = "</" + searchTerm + ">"
+        if (firstWrapper in line) and (secondWrapper in line):
+            value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
 
-        value = str(setSigDigits(value, numberSigDigits))
+            value = str(setSigDigits(value, numberSigDigits))
 
-        outputXMLstring = outputXMLstring.replace("val", value)
-        line = outputXMLstring + "\n"
+            outputXMLstring = outputXMLstring.replace("val", value)
+            line = outputXMLstring + "\n"
+    except:
+        writeLog("Cal Factor or Linearity Uncertainty Significant Digits not corrected at XML file line: ".format(index), logFile)
 
     xmlDataNew.append(line)
 
@@ -1002,7 +1061,7 @@ with open(xmlFilePath, 'w') as filehandle:
         filehandle.write(listItem)
 
 writeLog("Wrote results of the significant figures correction to the instrument file at: {}".format(xmlFilePath), logFile)
-print("> Quantity of significant digits set to two...")
+print("> Quantity of significant digits set to {}".format(numberSigDigits))
 print("")
 
 
@@ -1039,11 +1098,26 @@ for index, line in enumerate(xmlData):
         cFreq = float(cFreq)
         cfFreqList.append(cFreq)
 
-        cf = xmlData[index + 2]
-        cf = re.sub("[^0-9.]", "", cf)
-        # print("cf: {}".format(cf))
-        cf = float(cf)
-        cfList.append(cf)
+        try:
+            cf = xmlData[index + 2]
+            cf = re.sub("[^0-9.]", "", cf)
+            # print("cf: {}".format(cf))
+            cf = float(cf)
+            cfList.append(cf)
+        except:
+            writeLog("Interpolation failed at: {} Hz".format(rFreq), logFile)
+            writeLog("This is most likely because the XML template is not fully run.", logFile)
+            writeLog("However, all operations up to this point have been completed and are saved to the XML file.", logFile)
+            print("Interpolation failed at: {} Hz".format(rFreq))
+            print("This is most likely because the XML template is not fully run.")
+            print("However, all operations up to this point have been completed and are saved to the XML file.")
+            print("")
+            print("XML File saved at: {}".format(xmlFilePath))
+            print("")
+            print("This program will close automatically in 5 seconds...")
+            writeLog("Program ended prematurely!", logFile)
+            time.sleep(5)
+            exit()
 
         unc = xmlData[index + 3]
         unc = re.sub("[^0-9.]", "", unc)
