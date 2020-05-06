@@ -1,8 +1,10 @@
 # PS-Cal Corrector
 # By Micah Hurd
 programName = "PS-Cal Corrector"
-version = 1.2
+version = 2
 
+# Dependent on Installation of Excel Wings (see data to Excel function)
+# Use "pip install xlwings"
 import re
 import math
 # import scipy.interpolate # Non-native
@@ -19,6 +21,7 @@ import tkinter as tk
 from tkinter import messagebox
 from tkinter import ttk
 import time
+import tempfile
 
 def readConfigFile(filename, searchTag, sFunc=""):
     searchTag = searchTag.lower()
@@ -589,6 +592,1020 @@ def checkUncBudget(budgetTxtFile,uncVal,uncFreq,uncMsmt=0.0):
 
     return uncVal
 
+def imporStdList(filename):
+    standardList = []
+    for i in range(1, 21):
+        searchTag = "standard{}".format(i)
+        result = readConfigFile(filename, searchTag, sFunc="")
+        if result != "Searched term could not be found":
+            standardList.append(result)
+    return standardList
+
+def findAndExtractValueFromXML(header, wrapper, xmlDataList, returnLine=False):
+
+    header = header.lower()
+    wrapper = wrapper.lower()
+
+    headerFound = False
+
+    searchHeaderStart = header
+    searchHeaderEnd = "</" + header + ">"
+
+    searchWrapperStart = "<" + wrapper
+    searchWrapperEnd = "</" + wrapper + ">"
+
+    # Go through the XML data to find the required value
+    for index, line in enumerate(xmlDataList):
+
+        currentLine = line.lower()
+        #print(currentLine)
+        #input("Press enter to continue: ")
+
+        # If the header is found, then mark flag as true until the end of the header occurs
+        if searchHeaderStart in currentLine:
+            headerFound = True
+            # print("HeaderFound: {}".format(headerFound))
+        elif searchHeaderEnd in currentLine:
+            headerFound = False
+            # print("HeaderFound: {}".format(headerFound))
+
+        # Random comment found here which had no comment associated with it
+        if (headerFound == True) and (searchWrapperStart in currentLine):
+            # print("Found data: {}".format(currentLine))
+            lineData = line
+            break
+        else:
+            lineData = ""
+
+    # If no result were found, return empty string
+    if lineData ==  "":
+        return""
+
+    # Check to see if the XML element contains any data
+    # An empty line will contain "/>" only, once the start wrapper is removed
+    currentLine = lineData.lower()
+
+    currentLine = currentLine.replace(searchWrapperStart, "")
+    currentLine = currentLine.strip()
+
+    if currentLine == "/>":
+        emptyXmlElement = True
+    else:
+        emptyXmlElement = False
+
+    if emptyXmlElement == False:
+        # Extract the data from the XML element
+        lengthLineData = len(lineData)
+        lengthFirstWrapper = len(searchWrapperStart)
+        lengthSecondWrapper = len(searchWrapperEnd) + 1
+
+        # Strip the second wrapper off of the line of text
+        firstSlice = lineData[:-lengthSecondWrapper]
+        # print("FirstSlice: {}".format(firstSlice))
+        firstSliceLength = len(firstSlice)
+
+        # Find the string length to the end of the first wrapper
+        counter = firstSliceLength - 1
+        while counter > 0:
+
+            if firstSlice[counter] == ">":
+                firstWrapperEndIndex = counter + 1
+                break
+            counter -= 1
+
+        # Obtain the measurement value from the XML String
+        value = firstSlice[firstWrapperEndIndex:]
+        valueLength = len(value)
+
+        # Obtain the XML string up to the line
+        stringWithoutValue = firstSlice[:-valueLength]
+
+        # Only return the formatted empty line if instructed to do so
+        if returnLine == False:
+            return (value)
+        else:
+            # Create a XML string line which is prepped for having a new value inserted
+            outputXMLstring = stringWithoutValue + "val" + searchWrapperEnd
+            return (value, outputXMLstring)
+
+
+    else:
+        if returnLine == False:
+            return (" ")
+        else:
+            # Create a XML string line which is prepped for having a new value inserted
+            outputXMLstring = searchWrapperStart + "val/>"
+            return (value, outputXMLstring)
+
+def extractXmlData(xmlDataLine, wrapper):
+    xmlDataLine = xmlDataLine.lower()
+    xmlDataLine = xmlDataLine.strip()
+    wrapper = wrapper.lower()
+
+    startWrapper = "<" + wrapper + ">"
+    endWrapper = "</" + wrapper + ">"
+    nullStartWrapper = "<" + wrapper
+    nullEndWrapper = "/>"
+
+    cleanData = xmlDataLine.replace(startWrapper,"")
+    cleanData = cleanData.replace(endWrapper, "")
+    cleanData = cleanData.replace(nullStartWrapper, "")
+    cleanData = cleanData.replace(nullEndWrapper, "")
+
+    return str(cleanData)
+
+def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList):
+    import xlwings as xw
+    from xlwings.constants import InsertShiftDirection
+    # xmlList = []
+    # xmlList = readTxtFile("C:/Users/Micah/PycharmProjects/LinearityCal_Fluke96270A/8481A.XML")
+
+    # =========================== Open and Read Configuration File ===============================
+
+    # cfgFilename = "C:/Users/Micah/PycharmProjects/LinearityCal_Fluke96270A/PS-Cal-Corrector.cfg"
+
+    powerRefUnc = readConfigFile(cfgFilename, "powerRefUnc", sFunc="")
+    excelTemplateFile = excelSpreadsheet
+
+    print(excelTemplateFile)
+    # input("Pause:")
+
+    # =========================== Load in cert header information =================================
+    header = "UUTHeader"
+    wrapper = "ModelNumber"
+    # print(xmlList)
+
+    wrapper = "manufacturer"
+    manufacturer = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(manufacturer))
+
+    wrapper = "modelNumber"
+    modelNumber = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(modelNumber))
+
+    wrapper = "Description"
+    description = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(description))
+
+    wrapper = "SerialNumber"
+    serialNumber = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(serialNumber))
+
+    wrapper = "AssetNumber"
+    assetNumber = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(assetNumber))
+
+    header = "ProcedureHeader"
+    wrapper = "JobOrderNumber"
+    jobOrderNumber = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(jobOrderNumber))
+
+    header = "CalibrationHeader"
+    wrapper = "ProcedureName"
+    procedureName = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(procedureName))
+
+    wrapper = "CalibrationDate"
+    calibrationDate = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(calibrationDate))
+
+    wrapper = "CalibrationType"
+    calibrationType = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(calibrationType))
+
+    wrapper = "CalibrationTechnician"
+    technician = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(technician))
+
+    wrapper = "PinDepth>"
+    pinDepth = findAndExtractValueFromXML(header, wrapper, xmlList)
+    print("Returned >{}<".format(pinDepth))
+
+    # =========================== Insert Header Information =======================================
+    wb = xw.Book(excelTemplateFile)
+    wb.sheets["Table 1"].activate()
+
+    sht = wb.sheets["Table 1"]
+
+    xw.Range("C12").value = manufacturer
+    xw.Range("C13").value = modelNumber
+    xw.Range("C14").value = description
+    xw.Range("C15").value = serialNumber
+    xw.Range("C16").value = assetNumber
+    xw.Range("M12").value = jobOrderNumber
+    xw.Range("M13").value = calibrationDate
+    xw.Range("M14").value = technician
+    xw.Range("M15").value = calibrationType
+    xw.Range("M16").value = pinDepth
+
+    # input("Pause:")
+
+    # =========================== Get Standards List =============================================
+
+    standardsList = standardsList
+
+    # =========================== Insert data into Excel =========================================
+
+    wb = xw.Book(excelTemplateFile)
+    wb.sheets["Table 1"].activate()
+
+    sht = wb.sheets["Table 1"]
+
+    searchColumn = "B"
+    searchString = "Standards Start"
+    for i in range(1, 100, 1):
+        startColumn = i
+        cell = searchColumn + str(i)
+        cellData = xw.Range(cell).value
+
+        if cellData == searchString:
+            startRow = i
+
+            print("Found Standard Start Column: {}".format(cell))
+            break
+
+    for i, currentItem in enumerate(standardsList):
+        writeRow = int(startRow) + int(i)
+        inputList = currentItem.split(",")
+        print(inputList)
+
+        print("writeRow: {}".format(writeRow))
+        print("index: {}".format(i))
+
+        cell = "B{}".format(writeRow)
+        print("Cell: {}".format(cell))
+        print("I: {}".format(i))
+        xw.Range(cell).value = inputList[0]
+
+        cell = "C" + str(writeRow)
+        xw.Range(cell).value = inputList[1]
+
+        cell = "G" + str(writeRow)
+        xw.Range(cell).value = inputList[2]
+
+        cell = "K" + str(writeRow)
+        xw.Range(cell).value = inputList[3]
+
+        writeRow += 1
+
+        rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+        print("rangeVal: {} ".format(rangeVal))
+        # input()
+        sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+
+    # =========================== Load in Rho information =========================================
+
+    rhoFreq = []
+    rhoMsd = []
+    rhoLimit = []
+    rhoUnc = []
+    rhoMag = []
+    rhoPhase = []
+    rhoPF = []
+    searchHeader = "RhoData"
+    for index, line in enumerate(xmlList):
+
+        searchHeaderEnd = "</" + searchHeader + ">"
+        searchHeaderEnd = searchHeaderEnd.lower()
+        searchHeader = searchHeader.lower()
+        searchHeaderStart = "<" + searchHeader
+        currentLine = line.lower()
+
+        if searchHeaderStart in currentLine:
+            # print(currentLine)
+            for i in range(1, 20, 1):
+                rhoFound = False
+
+                print(i)
+                innerIndex = index + i
+                data = xmlList[innerIndex].lower()
+                print(data)
+
+                if searchHeaderEnd in data:
+                    # print("break")
+                    break
+
+                # print("Before: {}".format(data))
+                searchTerm = "frequency"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    rhoFreq.append(strippedData)
+                # print("After: {}".format(strippedData))
+
+                searchTerm = "Rho_Limit"
+                searchTerm = searchTerm.lower()
+                # print(data)
+                if searchTerm in data:
+                    print(2)
+                    strippedData = extractXmlData(data, searchTerm)
+                    rhoLimit.append(strippedData)
+                    rhoFound = True
+
+                searchTerm = "Rho_Uncertainty"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    rhoUnc.append(strippedData)
+                    rhoFound = True
+
+                searchTerm = "Rho"
+                searchTerm = searchTerm.lower()
+                if (searchTerm in data) and (rhoFound == False):
+                    data = extractXmlData(data, "rho")
+                    rhoMsd.append(data)
+
+                searchTerm = "Magnitude"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    rhoMag.append(strippedData)
+
+                searchTerm = "Phase"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    rhoPhase.append(strippedData)
+
+                searchTerm = "Pass_Fail"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    rhoPF.append(strippedData)
+
+    print("Freq: {}".format(rhoFreq))
+    print("msd: {}".format(rhoMsd))
+    print("Limit: {}".format(rhoLimit))
+    print("Unc: {}".format(rhoUnc))
+    print("Magnitude: {}".format(rhoMag))
+    print("Phase: {}".format(rhoPhase))
+    print("Pass Fail: {}".format(rhoPF))
+
+    # =========================== Insert data into Excel =========================================
+
+    wb = xw.Book(excelTemplateFile)
+    wb.sheets["Table 1"].activate()
+
+    sht = wb.sheets["Table 1"]
+
+    searchColumn = "B"
+    searchString = "Rho Start"
+    for i in range(1, 100, 1):
+        startColumn = i
+        cell = searchColumn + str(i)
+        cellData = xw.Range(cell).value
+
+        if cellData == searchString:
+            startRow = i
+
+            print("Found Rho Start Column: {}".format(cell))
+            break
+
+    for i, index in enumerate(rhoFreq):
+        writeRow = int(startRow) + int(i)
+
+        print("writeRow: {}".format(writeRow))
+        print("index: {}".format(i))
+
+        cell = "B{}".format(writeRow)
+        print("Cell: {}".format(cell))
+        print("I: {}".format(i))
+        xw.Range(cell).value = index
+
+        cell = "C" + str(writeRow)
+        xw.Range(cell).value = rhoMsd[i]
+
+        cell = "E" + str(writeRow)
+        xw.Range(cell).value = rhoLimit[i]
+
+        cell = "G" + str(writeRow)
+        xw.Range(cell).value = rhoUnc[i]
+
+        cell = "I" + str(writeRow)
+        xw.Range(cell).value = rhoMag[i]
+
+        cell = "K" + str(writeRow)
+        xw.Range(cell).value = rhoPhase[i]
+
+        cell = "M" + str(writeRow)
+        xw.Range(cell).value = rhoPF[i]
+
+        writeRow += 1
+
+        rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+        print("rangeVal: {} ".format(rangeVal))
+        # input()
+        sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+
+    # =========================== Load in Cal Factor information =========================================
+
+    cfFreq = []
+    cfMsd = []
+    cfUnc = []
+    cfDb = []
+    searchHeader = "CalFactor"
+    for index, line in enumerate(xmlList):
+
+        searchHeaderEnd = "</" + searchHeader + ">"
+        searchHeaderEnd = searchHeaderEnd.lower()
+        searchHeader = searchHeader.lower()
+        searchHeaderStart = "<" + searchHeader
+        currentLine = line.lower()
+        extraSearchFilter = "msdata"
+
+        if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
+            # print(currentLine)
+            cfFoundCounter = 0
+            for i in range(1, 20, 1):
+                searchFound = False
+
+                print(i)
+                innerIndex = index + i
+                data = xmlList[innerIndex].lower()
+                print(data)
+
+                if (searchHeaderEnd in data) and (cfFoundCounter > 0):
+                    # print("break")
+                    break
+
+                # print("Before: {}".format(data))
+                searchTerm = "frequency"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    cfFreq.append(strippedData)
+                # print("After: {}".format(strippedData))
+
+                searchTerm = "CalFactor"
+                searchTerm = searchTerm.lower()
+                # print(data)
+                if searchTerm in data:
+                    print("Found CF")
+                    cfFoundCounter += 1
+                    strippedData = extractXmlData(data, searchTerm)
+                    cfMsd.append(strippedData)
+
+                searchTerm = "Uncertainty"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    cfUnc.append(strippedData)
+
+                searchTerm = "dB"
+                searchTerm = searchTerm.lower()
+                if (searchTerm in data):
+                    print("dB Search Found: {}".format(data))
+                    data = extractXmlData(data, searchTerm)
+                    print("dB data: {}".format(data))
+                    cfDb.append(data)
+
+    print("cfFreq: {}".format(cfFreq))
+    print("cfMsd: {}".format(cfMsd))
+    print("cfUnc: {}".format(cfUnc))
+    print("cfDb: {}".format(cfDb))
+
+    # input("Pause:")
+
+    # =========================== Insert data into Excel =========================================
+
+    wb = xw.Book(excelTemplateFile)
+    wb.sheets["Table 1"].activate()
+
+    sht = wb.sheets["Table 1"]
+
+    searchColumn = "B"
+    searchString = "CF Start"
+    for i in range(1, 100, 1):
+        startColumn = i
+        cell = searchColumn + str(i)
+        cellData = xw.Range(cell).value
+
+        if cellData == searchString:
+            startRow = i
+
+            print("Found CF Start Column: {}".format(cell))
+            break
+
+    for i, index in enumerate(cfFreq):
+        writeRow = int(startRow) + int(i)
+
+        print("writeRow: {}".format(writeRow))
+        print("index: {}".format(i))
+
+        cell = "B{}".format(writeRow)
+        print("Cell: {}".format(cell))
+        print("I: {}".format(i))
+        xw.Range(cell).value = index
+
+        cell = "C" + str(writeRow)
+        xw.Range(cell).value = cfMsd[i]
+
+        cell = "E" + str(writeRow)
+        xw.Range(cell).value = cfUnc[i]
+
+        cell = "G" + str(writeRow)
+        xw.Range(cell).value = cfDb[i]
+
+        writeRow += 1
+
+        rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+        print("rangeVal: {} ".format(rangeVal))
+        # input()
+        sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+
+    # =========================== Load-in Linearity information =========================================
+
+    linFound = False
+    linNominal = []
+    linMsd = []
+    linLimits = []
+    linUnc = []
+    linPF = []
+    searchHeader = "Linearity"
+    for index, line in enumerate(xmlList):
+
+        searchHeaderEnd = "</" + searchHeader + ">"
+        searchHeaderEnd = searchHeaderEnd.lower()
+        searchHeader = searchHeader.lower()
+        searchHeaderStart = "<" + searchHeader
+        currentLine = line.lower()
+        extraSearchFilter = "msdata"
+
+        if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
+            # print(currentLine)
+            cfFoundCounter = 0
+            linFound = True
+            for i in range(1, 20, 1):
+                searchFound = False
+
+                print(i)
+                innerIndex = index + i
+                data = xmlList[innerIndex].lower()
+                print(data)
+
+                if (searchHeaderEnd in data) and (cfFoundCounter > 0):
+                    # print("break")
+                    break
+
+                # print("Before: {}".format(data))
+                searchTerm = "Nominal_Power"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    linNominal.append(strippedData)
+                # print("After: {}".format(strippedData))
+
+                searchTerm = "Measured_Power"
+                searchTerm = searchTerm.lower()
+                # print(data)
+                if searchTerm in data:
+                    print("Found CF")
+                    cfFoundCounter += 1
+                    strippedData = extractXmlData(data, searchTerm)
+                    linMsd.append(strippedData)
+
+                searchTerm = "Limits"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    linLimits.append(strippedData)
+
+                searchTerm = "Uncertainty"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    linUnc.append(strippedData)
+
+                searchTerm = "Pass_Fail"
+                searchTerm = searchTerm.lower()
+                if (searchTerm in data):
+                    print("dB Search Found: {}".format(data))
+                    data = extractXmlData(data, searchTerm)
+                    print("dB data: {}".format(data))
+                    linPF.append(data)
+
+    print("linNominal: {}".format(linNominal))
+    print("linMsd: {}".format(linMsd))
+    print("linLimits: {}".format(linLimits))
+    print("linUnc: {}".format(linUnc))
+    print("linPF: {}".format(linPF))
+
+    # input("Pause:")
+
+    if linFound == True:
+
+        # =========================== Insert data into Excel =========================================
+
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
+
+        sht = wb.sheets["Table 1"]
+
+        searchColumn = "B"
+        searchString = "Linearity Start"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found Linearity Start Column: {}".format(cell))
+                break
+
+        for i, index in enumerate(linNominal):
+            writeRow = int(startRow) + int(i)
+
+            print("writeRow: {}".format(writeRow))
+            print("index: {}".format(i))
+
+            cell = "B{}".format(writeRow)
+            print("Cell: {}".format(cell))
+            print("I: {}".format(i))
+            xw.Range(cell).value = index
+
+            cell = "C" + str(writeRow)
+            xw.Range(cell).value = linMsd[i]
+
+            cell = "E" + str(writeRow)
+            xw.Range(cell).value = linLimits[i]
+
+            cell = "G" + str(writeRow)
+            xw.Range(cell).value = linUnc[i]
+
+            cell = "M" + str(writeRow)
+            xw.Range(cell).value = linPF[i]
+
+            writeRow += 1
+
+            rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+            print("rangeVal: {} ".format(rangeVal))
+            # input()
+            sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+    else:
+        # Delete the linearity section out of the excel spreadsheet
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
+
+        sht = wb.sheets["Table 1"]
+
+        searchColumn = "B"
+        searchString = "Linearity"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found Linearity Section Start Column: {}".format(cell))
+                break
+
+        endRow = startRow + 6
+
+        rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+        print("rangeVal: {}".format(rangeVal))
+        try:
+            sht.range(rangeVal).api.delete()
+        except:
+            print("Known error; move on.")
+
+    # =========================== Load in Absolute Power Reference Information ==========================
+
+    aprFound = False
+    aprFreq = []
+    aprRef = []
+    aprMsd = []
+    aprUL = []
+    aprLL = []
+    aprUnc = []
+    aprPF = []
+    searchHeader = "PowerRef"
+    for index, line in enumerate(xmlList):
+
+        searchHeaderEnd = "</" + searchHeader + ">"
+        searchHeaderEnd = searchHeaderEnd.lower()
+        searchHeader = searchHeader.lower()
+        searchHeaderStart = "<" + searchHeader
+        currentLine = line.lower()
+        extraSearchFilter = "msdata"
+
+        if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
+            # print(currentLine)
+            cfFoundCounter = 0
+            aprFound = True
+            for i in range(1, 20, 1):
+                searchFound = False
+
+                print(i)
+                innerIndex = index + i
+                data = xmlList[innerIndex].lower()
+                print(data)
+
+                if (searchHeaderEnd in data):
+                    # print("break")
+                    break
+
+                # print("Before: {}".format(data))
+                searchTerm = "Frequency"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    aprFreq.append(strippedData)
+                # print("After: {}".format(strippedData))
+
+                searchTerm = "RefPower"
+                searchTerm = searchTerm.lower()
+                # print(data)
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    aprRef.append(strippedData)
+
+                searchTerm = "MeasurePower"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    aprMsd.append(strippedData)
+
+                searchTerm = "UpperLimit"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    aprUL.append(strippedData)
+
+                searchTerm = "LowerLimit"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    aprLL.append(strippedData)
+
+                searchTerm = "RefPower_Unc"
+                searchTerm = searchTerm.lower()
+                if searchTerm in data:
+                    strippedData = extractXmlData(data, searchTerm)
+                    # Insert Default Uncertainty Value From Configuration File
+                    if strippedData == "- -":
+                        strippedData = powerRefUnc
+                    aprUnc.append(strippedData)
+
+                searchTerm = "Pass_Fail"
+                searchTerm = searchTerm.lower()
+                if (searchTerm in data):
+                    print("dB Search Found: {}".format(data))
+                    data = extractXmlData(data, searchTerm)
+                    print("dB data: {}".format(data))
+                    aprPF.append(data)
+
+    print("aprFreq: {}".format(aprFreq))
+    print("aprRef: {}".format(aprRef))
+    print("aprMsd: {}".format(aprMsd))
+    print("aprUL: {}".format(aprUL))
+    print("aprLL: {}".format(aprLL))
+    print("aprUnc: {}".format(aprUnc))
+    print("aprPF: {}".format(aprPF))
+
+    # input("Pause:")
+
+    if aprFound == True:
+
+        # =========================== Insert data into Excel =========================================
+
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
+
+        sht = wb.sheets["Table 1"]
+
+        searchColumn = "B"
+        searchString = "Power Ref Start"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found Absolute Power Reference Start Cell: {}".format(cell))
+                break
+
+        for i, index in enumerate(aprFreq):
+            writeRow = int(startRow) + int(i)
+
+            print("writeRow: {}".format(writeRow))
+            print("index: {}".format(i))
+
+            cell = "B{}".format(writeRow)
+            print("Cell: {}".format(cell))
+            print("I: {}".format(i))
+            xw.Range(cell).value = index
+
+            cell = "C" + str(writeRow)
+            xw.Range(cell).value = aprRef[i]
+
+            cell = "E" + str(writeRow)
+            xw.Range(cell).value = aprMsd[i]
+
+            cell = "G" + str(writeRow)
+            xw.Range(cell).value = aprLL[i]
+
+            cell = "I" + str(writeRow)
+            xw.Range(cell).value = aprUL[i]
+
+            cell = "K" + str(writeRow)
+            xw.Range(cell).value = aprUnc[i]
+
+            cell = "M" + str(writeRow)
+            xw.Range(cell).value = aprPF[i]
+
+            writeRow += 1
+
+            rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+            print("rangeVal: {} ".format(rangeVal))
+            # input()
+            sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+    else:
+        # Delete the linearity section out of the excel spreadsheet
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
+
+        sht = wb.sheets["Table 1"]
+
+        searchColumn = "B"
+        searchString = "Absolute Power Reference"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found Absolute Power Reference Section Start Cell: {}".format(cell))
+                break
+
+        endRow = startRow + 6
+
+        rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+        print("rangeVal: {}".format(rangeVal))
+        try:
+            sht.range(rangeVal).api.delete()
+        except:
+            print("Known error; move on.")
+
+def setCalibrationStandardList(listOfStandards):
+    # Requires: from datetime import *
+    from datetime import datetime
+    from datetime import date
+
+    standardsList = listOfStandards
+
+    # Remove expired standards
+    currentDate = datetime.date(datetime.now())
+
+    expiredStandards = []
+    for index, i in enumerate(standardsList):
+        listItem = i.split(",")
+
+        checkLastItem = listItem[-1]
+        checkLastItem = checkLastItem.lower()
+        checkLastItem = checkLastItem[0]
+
+        if checkLastItem == "d":
+            del listItem[-1]
+
+        currentItemDate = listItem[-1]
+        currentItemDateList = currentItemDate.split("-")
+        year = int(currentItemDateList[0])
+        month = int(currentItemDateList[1])
+        day = int(currentItemDateList[2])
+
+        dateFromList = date(year, month, day)
+        if currentDate > dateFromList:
+            expiredStandards.append(i)
+            del standardsList[index]
+
+    if len(expiredStandards) > 0:
+        print("true")
+        print("==============================================================================")
+        print("|                                                                            |")
+        print("|                          EXPIRED SYSTEM STANDARDS                          |")
+        print("|                                                                            |")
+        print("==============================================================================")
+        print("{:2}    {:15}{:30}{:15}{:10}".format(" #", "Model", "Description", "Asset Number", "Cal Due"))
+        print("==============================================================================")
+        for index, i in enumerate(expiredStandards):
+            listItem = i.split(",")
+            # print("{}\t\t{}\t\t\t{}\t\t\t{}".format(listItem[0],listItem[1],listItem[2],listItem[3]))
+            print("{:2}:   {:15}{:30}{:15}{:10}".format(index, listItem[0], listItem[1], listItem[2], listItem[3]))
+        print("==============================================================================")
+        print("The standards noted above are EXPIRED and cannot be selected until the configuration file is updated!")
+        input("> Press Enter to continue...")
+
+    # Populate default standards
+    selectedStandards = []
+    for index, i in enumerate(standardsList):
+        listItem = i.split(",")
+        defaultFlag = listItem[-1]
+        defaultFlag = defaultFlag.lower()
+        defaultFlag = defaultFlag[0]
+        if defaultFlag == "d":
+            selectedStandards.append(i)
+
+    print("==============================================================================")
+    print("|                                                                            |")
+    print("|                        CONFIGURED SYSTEM STANDARDS                         |")
+    print("|                                                                            |")
+    print("==============================================================================")
+    print("{:2}    {:15}{:30}{:15}{:10}".format(" #", "Model", "Description", "Asset Number", "Cal Due"))
+    print("==============================================================================")
+    for index, i in enumerate(standardsList):
+        listItem = i.split(",")
+        # print("{}\t\t{}\t\t\t{}\t\t\t{}".format(listItem[0],listItem[1],listItem[2],listItem[3]))
+        print("{:2}:   {:15}{:30}{:15}{:10}".format(index, listItem[0], listItem[1], listItem[2], listItem[3]))
+    print("")
+
+    selection = ""
+    while selection != "c":
+        print("==============================================================================")
+        print("|                                                                            |")
+        print("|               SELECTED STANDARDS (used for this calibration)               |")
+        print("|                                                                            |")
+        print("==============================================================================")
+        print("{:2}    {:15}{:30}{:15}{:10}".format(" #", "Model", "Description", "Asset Number", "Cal Due"))
+        print("==============================================================================")
+        for index, i in enumerate(selectedStandards):
+            listItem = i.split(",")
+            # print("{}\t\t{}\t\t\t{}\t\t\t{}".format(listItem[0],listItem[1],listItem[2],listItem[3]))
+            print("{:2}:   {:15}{:30}{:15}{:10}".format(index, listItem[0], listItem[1], listItem[2], listItem[3]))
+
+        print("==============================================================================")
+        selection = input("Please Select (A)dd, (R)emove, or (C)onfirm Selection: ")
+        selection = selection.lower()
+
+        if selection != "a" and selection != "r" and selection != "c":
+            print("")
+            print("Valid options are (A)dd, (R)emove), or (C)onfirm Selection only!")
+            print("i.e. you must enter {}, {}, or {}. So try again...".format("a", "r", "c"))
+            print("")
+            print(
+                "See, these are the things which I, the programmer, must anticipate; otherwise who knows what crazy nonsense would go on!")
+            print(
+                "Seriously, this simple \"standard selection\" section of code is like, 100 lines long! A lot of it exists")
+            print("just to handle user input entry errors.")
+            print("I really need to get my act together and finish learning how to program GUIs in Python.")
+
+        if selection == "a":
+            print("==============================================================================")
+            print("|                                                                            |")
+            print("|                          SYSTEM STANDARDS LIST                             |")
+            print("|                                                                            |")
+            print("==============================================================================")
+            print("{:2}    {:15}{:30}{:15}{:10}".format(" #", "Model", "Description", "Asset Number", "Cal Due"))
+            print("==============================================================================")
+            for index, i in enumerate(standardsList):
+                listItem = i.split(",")
+                # print("{}\t\t{}\t\t\t{}\t\t\t{}".format(listItem[0],listItem[1],listItem[2],listItem[3]))
+                print("{:2}:   {:15}{:30}{:15}{:10}".format(index, listItem[0], listItem[1], listItem[2], listItem[3]))
+            print("==============================================================================")
+
+            selection = -1
+            while selection < 0 or selection > index:
+                selection = int(input("Enter the item # of the standard to add (0 through {}): ".format(index)))
+                if selection < 0 or selection > index:
+                    print("You can only choose item number 0 through {}!".format(index))
+                    print("Try again...")
+
+            currentSelectedItem = standardsList[selection]
+            print(currentSelectedItem)
+            selectedStandards.append(currentSelectedItem)
+
+        if selection == "r":
+            print("==============================================================================")
+            print("|                                                                            |")
+            print("|                        DELETE A SELECTED STANDARDS                         |")
+            print("|                                                                            |")
+            print("==============================================================================")
+            print("{:2}    {:15}{:30}{:15}{:10}".format(" #", "Model", "Description", "Asset Number", "Cal Due"))
+            print("==============================================================================")
+            for index, i in enumerate(selectedStandards):
+                listItem = i.split(",")
+                # print("{}\t\t{}\t\t\t{}\t\t\t{}".format(listItem[0],listItem[1],listItem[2],listItem[3]))
+                print("{:2}:   {:15}{:30}{:15}{:10}".format(index, listItem[0], listItem[1], listItem[2], listItem[3]))
+            print("==============================================================================")
+
+            selection = -1
+            while selection < 0 or selection > index:
+                selection = int(input("Enter the item # of the standard to remove (0 through {}): ".format(index)))
+                if selection < 0 or selection > index:
+                    print("You can only choose item number 0 through {}!".format(index))
+                    print("Try again...")
+
+            del selectedStandards[selection]
+
+    return selectedStandards
+
 # Start Program =================================================================
 # Set initial program variables --------------------
 logFile = "PS-Cal_Corrector_Log.txt"
@@ -637,6 +1654,8 @@ try:
     writeLog("Location of Cal Factor budget: {}.".format(cfBudgetTxtFile), logFile)
     linBudgetTxtFile = readConfigFile(configFile, "linBudgetTxtFile")
     writeLog("Location of linearity budget: {}.".format(linBudgetTxtFile), logFile)
+    excelTemplateFile = readConfigFile(configFile, "excelTemplateFile", sFunc="")
+    writeLog("Location of excel template file: {}.".format(excelTemplateFile), logFile)
 except:
     writeLog("Failed to load configuration file variables. Check that the file is present.", logFile)
     exit()
@@ -656,14 +1675,23 @@ writeLog("Debug flag set to {}.".format(debugBool), logFile)
 # else:
 print("")
 print("Use the file dialogue window to select the PS-Cal XML to be corrected...")
-time.sleep(2)
-extensionType = "*.XML"
-xmlFilePath = getFilePath(extensionType,initialDir=PS_CalResultsFolder,extensionDescription="PSCAL XML")
-writeLog("User selected the following file for correction: {}.".format(xmlFilePath), logFile)
+if debugBool == True:
+    xmlFile = "debugData.xml"
+    xmlFilePath = cwd + xmlFile
 
-# Split out the xmlFilePath to obtain the xmlFile name itself
-tempList = xmlFilePath.split("/")
-xmlFile = tempList[-1]
+    # Split out the xmlFilePath to obtain the xmlFile name itself
+    tempList = xmlFilePath.split("\\")
+    xmlFile = tempList[-1]
+
+else:
+    time.sleep(2)
+    extensionType = "*.XML"
+    xmlFilePath = getFilePath(extensionType,initialDir=PS_CalResultsFolder,extensionDescription="PSCAL XML")
+    writeLog("User selected the following file for correction: {}.".format(xmlFilePath), logFile)
+
+    # Split out the xmlFilePath to obtain the xmlFile name itself
+    tempList = xmlFilePath.split("/")
+    xmlFile = tempList[-1]
 
 # Read-in the XML file data to a list
 xmlData = readTxtFile(xmlFilePath)
@@ -771,8 +1799,25 @@ while tempBool == True:
     tempCounter+=1
 
 # Backup of the original file
+print("xmlFilePath: {}".format(xmlFilePath))
+print("archiveFilePath: {}".format(archiveFilePath))
 dest = shutil.copyfile(xmlFilePath, archiveFilePath)
 writeLog("Created backup of the original DUT calibration file at: {}.".format(archiveFilePath), logFile)
+
+# Create a working copy of the Excel Template file for use by this routine
+winTempFolder = tempfile.gettempdir()                       # Gets the windows temporary folder
+tempDirectory = winTempFolder + "/temporary_sensorDataTemplate.xls".format()
+
+dest = shutil.copyfile(excelTemplateFile, tempDirectory)
+writeLog("Created backup of the original Excel Template File at: {}.".format(tempDirectory), logFile)
+
+excelTemplateFile = tempDirectory
+
+# Import Standards List and instruct user to select standards
+standardsList = imporStdList(configFile)
+selectedStandards = setCalibrationStandardList(standardsList)
+
+writeLog("Technician confirmed the following standards list: {}.".format(selectedStandards), logFile)
 
 # ===================================================================================================================
 #                                    Check Against Uncertainty Budget Files
@@ -1298,15 +2343,44 @@ writeLog("Wrote interpolated data to XML file at: {}".format(xmlFilePath), logFi
 
 
 writeLog("CF Interpolation process completed.", logFile)
-writeLog("Program output saved to: {}.".format(xmlFilePath), logFile)
-
 print("> Interpolation check completed...")
 print("")
-print("Output file saved at: {}".format(xmlFilePath))
+
+# ===================================================================================================================
+#                                  Attempt to export results into Excel template file
+# ===================================================================================================================
+writeLog("Starting Export of Data to Excel Template", logFile)
+writeLog("Using Excel Spreadsheet: {}".format(excelTemplateFile), logFile)
+print("> Attempting to export data to excel template...")
+
+
+
+try:
+    exportXmlToExcel(xmlDataNew, configFile, excelTemplateFile, selectedStandards)
+    print("")
+    print("> Successfully exported data to Excel.")
+    print("")
+    print("==============================================================")
+    print("          - - Use Excel to save data as PDF - -")
+    print("==============================================================")
+    writeLog("Successfully exported data to Excel Template", logFile)
+except:
+    writeLog("Failed to write excel data to Excel template", logFile)
+    print("")
+    print("> Failed to write data to Excel template!")
+    print("==============================================================")
+    print("- - Open the XML file in PS-Cal to verify and save as PDF - -")
+    print("==============================================================")
+
+
+
+writeLog("Program output saved to: {}.".format(xmlFilePath), logFile)
+
+
 print("")
-print("==============================================================")
-print("- - Open the XML file in PS-Cal to verify and save as PDF - -")
-print("==============================================================")
+print("XML Output file saved at: {}".format(xmlFilePath))
+print("")
+
 print("")
 print("This program will close automatically in 5 seconds...")
 writeLog("Program ended.", logFile)
