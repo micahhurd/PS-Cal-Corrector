@@ -601,18 +601,28 @@ def imporStdList(filename):
             standardList.append(result)
     return standardList
 
-def findAndExtractValueFromXML(header, wrapper, xmlDataList, returnLine=False):
+def findAndExtractValueFromXML(header, wrapper, xmlDataList, stringSubSearch="", returnLine=False):
 
     header = header.lower()
     wrapper = wrapper.lower()
+    stringSubSearch = stringSubSearch.lower()
 
     headerFound = False
+    if stringSubSearch == "":
+        stringSubSearchFound = True
+    else:
+        stringSubSearchFound = False
 
     searchHeaderStart = header
     searchHeaderEnd = "</" + header + ">"
 
+    # wrapperSubSearchStart = "<" + wrapperSubSearch
+    # wrapperSubSearchEnd = "</" + wrapperSubSearch + ">"
+
     searchWrapperStart = "<" + wrapper
     searchWrapperEnd = "</" + wrapper + ">"
+
+
 
     # Go through the XML data to find the required value
     for index, line in enumerate(xmlDataList):
@@ -624,13 +634,17 @@ def findAndExtractValueFromXML(header, wrapper, xmlDataList, returnLine=False):
         # If the header is found, then mark flag as true until the end of the header occurs
         if searchHeaderStart in currentLine:
             headerFound = True
+            if stringSubSearch != "":
+                stringSubSearchFound = False
             # print("HeaderFound: {}".format(headerFound))
         elif searchHeaderEnd in currentLine:
             headerFound = False
             # print("HeaderFound: {}".format(headerFound))
+        if stringSubSearch in currentLine:
+            stringSubSearchFound = True
 
         # Random comment found here which had no comment associated with it
-        if (headerFound == True) and (searchWrapperStart in currentLine):
+        if (headerFound) and (stringSubSearchFound) and (searchWrapperStart in currentLine):
             # print("Found data: {}".format(currentLine))
             lineData = line
             break
@@ -688,15 +702,6 @@ def findAndExtractValueFromXML(header, wrapper, xmlDataList, returnLine=False):
             outputXMLstring = stringWithoutValue + "val" + searchWrapperEnd
             return (value, outputXMLstring)
 
-
-    else:
-        if returnLine == False:
-            return (" ")
-        else:
-            # Create a XML string line which is prepped for having a new value inserted
-            outputXMLstring = searchWrapperStart + "val/>"
-            return (value, outputXMLstring)
-
 def extractXmlData(xmlDataLine, wrapper):
     xmlDataLine = xmlDataLine.lower()
     xmlDataLine = xmlDataLine.strip()
@@ -714,7 +719,7 @@ def extractXmlData(xmlDataLine, wrapper):
 
     return str(cleanData)
 
-def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList):
+def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFactorMethod,pvName1,pvName2):
     import xlwings as xw
     from xlwings.constants import InsertShiftDirection
     # xmlList = []
@@ -997,121 +1002,594 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList):
         # input()
         sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
 
-    # =========================== Load in Cal Factor information =========================================
 
-    cfFreq = []
-    cfMsd = []
-    cfUnc = []
-    cfDb = []
-    searchHeader = "CalFactor"
-    for index, line in enumerate(xmlList):
 
-        searchHeaderEnd = "</" + searchHeader + ">"
-        searchHeaderEnd = searchHeaderEnd.lower()
-        searchHeader = searchHeader.lower()
-        searchHeaderStart = "<" + searchHeader
-        currentLine = line.lower()
-        extraSearchFilter = "msdata"
 
-        if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
-            # print(currentLine)
-            cfFoundCounter = 0
-            for i in range(1, 20, 1):
-                searchFound = False
+    # =========================== Configure For Normal CF Template ========================================
+    # If the method does not require two cal factor data sets, delete the second data set
+    if calFactorMethod != "normalpath_lowpath_method" and calFactorMethod != "normal_average_method" and calFactorMethod != "power_ver_method":
+        # Delete the second cal factor section out of the excel spreadsheet
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
 
-                print(i)
-                innerIndex = index + i
-                data = xmlList[innerIndex].lower()
-                print(data)
+        sht = wb.sheets["Table 1"]
 
-                if (searchHeaderEnd in data) and (cfFoundCounter > 0):
-                    # print("break")
+        searchColumn = "B"
+        searchString = "Power Ver1"
+        for i in range(1, 1000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found {} Section Start Column: {}".format(searchString, cell))
+                break
+
+        endRow = startRow + 6
+
+        rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+        print("rangeVal: {}".format(rangeVal))
+        try:
+            sht.range(rangeVal).api.delete()
+        except:
+            print("Known error; move on.")
+
+        searchColumn = "B"
+        searchString = "Cal Factor2"
+        for i in range(1, 1000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found {} Section Start Column: {}".format(searchString,cell))
+                break
+
+        endRow = startRow + 6
+
+        rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+        print("rangeVal: {}".format(rangeVal))
+        try:
+            sht.range(rangeVal).api.delete()
+        except:
+            print("Known error; move on.")
+
+        # =========================== Configure For Power Verification Method =================================
+        # If the method does not require two cal factor data sets, delete the second data set
+        if calFactorMethod == "power_ver_method":
+            # Delete the second cal factor section out of the excel spreadsheet
+            wb = xw.Book(excelTemplateFile)
+            wb.sheets["Table 1"].activate()
+
+            sht = wb.sheets["Table 1"]
+
+            searchColumn = "B"
+            searchString = "Cal Factor1"
+            for i in range(1, 1000, 1):
+                startColumn = i
+                cell = searchColumn + str(i)
+                cellData = xw.Range(cell).value
+
+                if cellData == searchString:
+                    startRow = i
+
+                    print("Found {} Section Start Column: {}".format(searchString, cell))
                     break
 
-                # print("Before: {}".format(data))
-                searchTerm = "frequency"
-                searchTerm = searchTerm.lower()
-                if searchTerm in data:
-                    strippedData = extractXmlData(data, searchTerm)
-                    cfFreq.append(strippedData)
-                # print("After: {}".format(strippedData))
+            endRow = startRow + 6
 
-                searchTerm = "CalFactor"
-                searchTerm = searchTerm.lower()
-                # print(data)
-                if searchTerm in data:
-                    print("Found CF")
-                    cfFoundCounter += 1
-                    strippedData = extractXmlData(data, searchTerm)
-                    cfMsd.append(strippedData)
+            rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+            print("rangeVal: {}".format(rangeVal))
+            try:
+                sht.range(rangeVal).api.delete()
+            except:
+                print("Known error; move on.")
 
-                searchTerm = "Uncertainty"
-                searchTerm = searchTerm.lower()
-                if searchTerm in data:
-                    strippedData = extractXmlData(data, searchTerm)
-                    cfUnc.append(strippedData)
+            searchColumn = "B"
+            searchString = "Cal Factor2"
+            for i in range(1, 1000, 1):
+                startColumn = i
+                cell = searchColumn + str(i)
+                cellData = xw.Range(cell).value
 
-                searchTerm = "dB"
-                searchTerm = searchTerm.lower()
-                if (searchTerm in data):
-                    print("dB Search Found: {}".format(data))
-                    data = extractXmlData(data, searchTerm)
-                    print("dB data: {}".format(data))
-                    cfDb.append(data)
+                if cellData == searchString:
+                    startRow = i
 
-    print("cfFreq: {}".format(cfFreq))
-    print("cfMsd: {}".format(cfMsd))
-    print("cfUnc: {}".format(cfUnc))
-    print("cfDb: {}".format(cfDb))
+                    print("Found {} Section Start Column: {}".format(searchString,cell))
+                    break
 
-    # input("Pause:")
+            endRow = startRow + 6
 
-    # =========================== Insert data into Excel =========================================
+            rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+            print("rangeVal: {}".format(rangeVal))
+            try:
+                sht.range(rangeVal).api.delete()
+            except:
+                print("Known error; move on.")
 
-    wb = xw.Book(excelTemplateFile)
-    wb.sheets["Table 1"].activate()
+            # =========================== Configure For Multi-Path and Average Methods ============================
+            # If the method does not require two cal factor data sets, delete the second data set
+            if calFactorMethod == "normalpath_lowpath_method" or calFactorMethod == "normal_average_method":
+                # Delete the second cal factor section out of the excel spreadsheet
+                wb = xw.Book(excelTemplateFile)
+                wb.sheets["Table 1"].activate()
 
-    sht = wb.sheets["Table 1"]
+                sht = wb.sheets["Table 1"]
 
-    searchColumn = "B"
-    searchString = "CF Start"
-    for i in range(1, 100, 1):
-        startColumn = i
-        cell = searchColumn + str(i)
-        cellData = xw.Range(cell).value
+                searchColumn = "B"
+                searchString = "Power Ver1"
+                for i in range(1, 1000, 1):
+                    startColumn = i
+                    cell = searchColumn + str(i)
+                    cellData = xw.Range(cell).value
 
-        if cellData == searchString:
-            startRow = i
+                    if cellData == searchString:
+                        startRow = i
 
-            print("Found CF Start Column: {}".format(cell))
-            break
+                        print("Found {} Section Start Column: {}".format(searchString, cell))
+                        break
 
-    for i, index in enumerate(cfFreq):
-        writeRow = int(startRow) + int(i)
+                endRow = startRow + 6
 
-        print("writeRow: {}".format(writeRow))
-        print("index: {}".format(i))
+                rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+                print("rangeVal: {}".format(rangeVal))
+                try:
+                    sht.range(rangeVal).api.delete()
+                except:
+                    print("Known error; move on.")
 
-        cell = "B{}".format(writeRow)
-        print("Cell: {}".format(cell))
-        print("I: {}".format(i))
-        xw.Range(cell).value = index
+    # =========================== Load in Cal Factor1 information =========================================
+    if calFactorMethod == "cf_method":
+        cfFreq = []
+        cfMsd = []
+        cfUnc = []
+        cfDb = []
 
-        cell = "C" + str(writeRow)
-        xw.Range(cell).value = cfMsd[i]
+        if calFactorMethod == "cf_method" or calFactorMethod == "normalpath_lowpath_method":
+            searchHeader = "CalFactor"
+        elif calFactorMethod == "normal_average_method":
+            searchHeader = "CalFactorNormal"
 
-        cell = "E" + str(writeRow)
-        xw.Range(cell).value = cfUnc[i]
+        for index, line in enumerate(xmlList):
 
-        cell = "G" + str(writeRow)
-        xw.Range(cell).value = cfDb[i]
+            searchHeaderEnd = "</" + searchHeader + ">"
+            searchHeaderEnd = searchHeaderEnd.lower()
+            searchHeader = searchHeader.lower()
+            searchHeaderStart = "<" + searchHeader
+            currentLine = line.lower()
+            extraSearchFilter = "msdata"
 
-        writeRow += 1
+            if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
+                # print(currentLine)
+                cfFoundCounter = 0
+                for i in range(1, 20, 1):
+                    searchFound = False
 
-        rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
-        print("rangeVal: {} ".format(rangeVal))
-        # input()
-        sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+                    print(i)
+                    innerIndex = index + i
+                    data = xmlList[innerIndex].lower()
+                    print(data)
+
+                    if (searchHeaderEnd in data) and (cfFoundCounter > 0):
+                        # print("break")
+                        break
+
+                    # print("Before: {}".format(data))
+                    searchTerm = "frequency"
+                    searchTerm = searchTerm.lower()
+                    if searchTerm in data:
+                        strippedData = extractXmlData(data, searchTerm)
+                        cfFreq.append(strippedData)
+                    # print("After: {}".format(strippedData))
+
+                    searchTerm = "CalFactor"
+                    searchTerm = searchTerm.lower()
+                    # print(data)
+                    if searchTerm in data:
+                        print("Found CF")
+                        cfFoundCounter += 1
+                        strippedData = extractXmlData(data, searchTerm)
+                        cfMsd.append(strippedData)
+
+                    searchTerm = "Uncertainty"
+                    searchTerm = searchTerm.lower()
+                    if searchTerm in data:
+                        strippedData = extractXmlData(data, searchTerm)
+                        cfUnc.append(strippedData)
+
+                    searchTerm = "dB"
+                    searchTerm = searchTerm.lower()
+                    if (searchTerm in data):
+                        print("dB Search Found: {}".format(data))
+                        data = extractXmlData(data, searchTerm)
+                        print("dB data: {}".format(data))
+                        cfDb.append(data)
+
+        print("cfFreq: {}".format(cfFreq))
+        print("cfMsd: {}".format(cfMsd))
+        print("cfUnc: {}".format(cfUnc))
+        print("cfDb: {}".format(cfDb))
+
+        # input("Pause:")
+
+        # =========================== Insert data into Excel =========================================
+
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
+
+        sht = wb.sheets["Table 1"]
+
+        # Apply the proper measurement title in the spreadsheet
+        searchColumn = "B"
+        searchString = "Cal Factor1"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                xw.Range(cell).value = pvName1
+                break
+
+        # Find the start of the cal factor section 1
+        searchColumn = "B"
+        searchString = "CF Start1"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found CF Start Column: {}".format(cell))
+                break
+
+        for i, index in enumerate(cfFreq):
+            writeRow = int(startRow) + int(i)
+
+            print("writeRow: {}".format(writeRow))
+            print("index: {}".format(i))
+
+            cell = "B{}".format(writeRow)
+            print("Cell: {}".format(cell))
+            print("I: {}".format(i))
+            xw.Range(cell).value = index
+
+            cell = "C" + str(writeRow)
+            xw.Range(cell).value = cfMsd[i]
+
+            cell = "E" + str(writeRow)
+            xw.Range(cell).value = cfUnc[i]
+
+            cell = "G" + str(writeRow)
+            xw.Range(cell).value = cfDb[i]
+
+            writeRow += 1
+
+            rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+            print("rangeVal: {} ".format(rangeVal))
+            # input()
+            sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+
+        # =========================== Load in Cal Factor2 information =========================================
+        if calFactorMethod == "normalpath_lowpath_method" or calFactorMethod == "normal_average_method":
+            cfFreq = []
+            cfMsd = []
+            cfUnc = []
+            cfDb = []
+
+            if calFactorMethod == "cf_method" or calFactorMethod == "normalpath_lowpath_method":
+                searchHeader = "CalFactorLo"
+            elif calFactorMethod == "normal_average_method":
+                searchHeader = "CalFactorAverage"
+
+            for index, line in enumerate(xmlList):
+
+                searchHeaderEnd = "</" + searchHeader + ">"
+                searchHeaderEnd = searchHeaderEnd.lower()
+                searchHeader = searchHeader.lower()
+                searchHeaderStart = "<" + searchHeader
+                currentLine = line.lower()
+                extraSearchFilter = "msdata"
+
+                if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
+                    # print(currentLine)
+                    cfFoundCounter = 0
+                    for i in range(1, 20, 1):
+                        searchFound = False
+
+                        print(i)
+                        innerIndex = index + i
+                        data = xmlList[innerIndex].lower()
+                        print(data)
+
+                        if (searchHeaderEnd in data) and (cfFoundCounter > 0):
+                            # print("break")
+                            break
+
+                        # print("Before: {}".format(data))
+                        searchTerm = "frequency"
+                        searchTerm = searchTerm.lower()
+                        if searchTerm in data:
+                            strippedData = extractXmlData(data, searchTerm)
+                            cfFreq.append(strippedData)
+                        # print("After: {}".format(strippedData))
+
+                        searchTerm = "CalFactor"
+                        searchTerm = searchTerm.lower()
+                        # print(data)
+                        if searchTerm in data:
+                            print("Found CF")
+                            cfFoundCounter += 1
+                            strippedData = extractXmlData(data, searchTerm)
+                            cfMsd.append(strippedData)
+
+                        searchTerm = "Uncertainty"
+                        searchTerm = searchTerm.lower()
+                        if searchTerm in data:
+                            strippedData = extractXmlData(data, searchTerm)
+                            cfUnc.append(strippedData)
+
+                        searchTerm = "dB"
+                        searchTerm = searchTerm.lower()
+                        if (searchTerm in data):
+                            print("dB Search Found: {}".format(data))
+                            data = extractXmlData(data, searchTerm)
+                            print("dB data: {}".format(data))
+                            cfDb.append(data)
+
+            print("cfFreq: {}".format(cfFreq))
+            print("cfMsd: {}".format(cfMsd))
+            print("cfUnc: {}".format(cfUnc))
+            print("cfDb: {}".format(cfDb))
+
+            # input("Pause:")
+
+            # =========================== Insert data into Excel =========================================
+
+            wb = xw.Book(excelTemplateFile)
+            wb.sheets["Table 1"].activate()
+
+            sht = wb.sheets["Table 1"]
+
+            # Apply the proper measurement title in the spreadsheet
+            searchColumn = "B"
+            searchString = "Cal Factor2"
+            for i in range(1, 10000, 1):
+                startColumn = i
+                cell = searchColumn + str(i)
+                cellData = xw.Range(cell).value
+
+                if cellData == searchString:
+                    xw.Range(cell).value = pvName2
+                    break
+
+            # Find the start of the cal factor section 1
+            searchColumn = "B"
+            searchString = "CF Start2"
+            for i in range(1, 10000, 1):
+                startColumn = i
+                cell = searchColumn + str(i)
+                cellData = xw.Range(cell).value
+
+                if cellData == searchString:
+                    startRow = i
+
+                    print("Found CF Start Column: {}".format(cell))
+                    break
+
+            for i, index in enumerate(cfFreq):
+                writeRow = int(startRow) + int(i)
+
+                print("writeRow: {}".format(writeRow))
+                print("index: {}".format(i))
+
+                cell = "B{}".format(writeRow)
+                print("Cell: {}".format(cell))
+                print("I: {}".format(i))
+                xw.Range(cell).value = index
+
+                cell = "C" + str(writeRow)
+                xw.Range(cell).value = cfMsd[i]
+
+                cell = "E" + str(writeRow)
+                xw.Range(cell).value = cfUnc[i]
+
+                cell = "G" + str(writeRow)
+                xw.Range(cell).value = cfDb[i]
+
+                writeRow += 1
+
+                rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+                print("rangeVal: {} ".format(rangeVal))
+                # input()
+                sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+
+    # =========================== Load in Power Verification Information =================================
+    if calFactorMethod == "power_ver_method":
+        verFreq = []
+        verApplied = []
+        verMsd = []
+        verError = []
+        verLL = []
+        verUL = []
+        verPF = []
+        verUnc = []
+        searchHeader = "CalFactor"
+        for index, line in enumerate(xmlList):
+
+            searchHeaderEnd = "</" + searchHeader + ">"
+            searchHeaderEnd = searchHeaderEnd.lower()
+            searchHeader = searchHeader.lower()
+            searchHeaderStart = "<" + searchHeader
+            currentLine = line.lower()
+            extraSearchFilter = "msdata"
+            extraSearchFilter = extraSearchFilter.lower()
+
+            if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
+                # print(currentLine)
+                cfFoundCounter = 0
+                for i in range(1, 20, 1):
+                    searchFound = False
+
+                    print(i)
+                    innerIndex = index + i
+                    data = xmlList[innerIndex].lower()
+                    print(data)
+
+                    if (searchHeaderEnd in data) and (cfFoundCounter > 0):
+                        # print("break")
+                        break
+
+                    # print("Before: {}".format(data))
+                    searchTerm = "frequency"
+                    searchTerm = searchTerm.lower()
+                    if searchTerm in data:
+                        strippedData = extractXmlData(data, searchTerm)
+                        verFreq.append(strippedData)
+
+                    searchTerm = "AppliedPower"
+                    searchTerm = searchTerm.lower()
+                    # print(data)
+                    if searchTerm in data:
+                        print("Found CF")
+                        cfFoundCounter += 1
+                        strippedData = extractXmlData(data, searchTerm)
+                        try:
+                            strippedData = strippedData.lower()
+                            strippedData = strippedData.replace("mw","")
+                            strippedData = strippedData.strip()
+                            verApplied.append(strippedData)
+                        except:
+                            verApplied.append(strippedData)
+
+                    searchTerm = "MeasuredPower"
+                    searchTerm = searchTerm.lower()
+                    if searchTerm in data:
+                        strippedData = extractXmlData(data, searchTerm)
+                        try:
+                            strippedData = strippedData.lower()
+                            strippedData = strippedData.replace("mw","")
+                            strippedData = strippedData.strip()
+                            verMsd.append(strippedData)
+                        except:
+                            verMsd.append(strippedData)
+
+
+                    searchTerm = "PercentError"
+                    searchTerm = searchTerm.lower()
+                    if (searchTerm in data):
+                        data = extractXmlData(data, searchTerm)
+                        verError.append(data)
+
+                    searchTerm = "LowerLimit"
+                    searchTerm = searchTerm.lower()
+                    if (searchTerm in data):
+                        data = extractXmlData(data, searchTerm)
+                        verLL.append(data)
+
+                    searchTerm = "UpperLimit"
+                    searchTerm = searchTerm.lower()
+                    if (searchTerm in data):
+                        data = extractXmlData(data, searchTerm)
+                        verUL.append(data)
+
+                    searchTerm = "Pass_Fail"
+                    searchTerm = searchTerm.lower()
+                    if (searchTerm in data):
+                        data = extractXmlData(data, searchTerm)
+                        verPF.append(data)
+
+                    searchTerm = "Uncertainty"
+                    searchTerm = searchTerm.lower()
+                    if (searchTerm in data):
+                        data = extractXmlData(data, searchTerm)
+                        verUnc.append(data)
+
+        print("verFreq: {}".format(verFreq))
+        print("verApplied: {}".format(verApplied))
+        print("verMsd: {}".format(verMsd))
+        print("verError: {}".format(verError))
+        print("verLL: {}".format(verLL))
+        print("verUL: {}".format(verUL))
+        print("verPF: {}".format(verPF))
+        print("verUnc: {}".format(verUnc))
+
+        # input("Pause:")
+
+        # =========================== Insert data into Excel =========================================
+
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
+
+        sht = wb.sheets["Table 1"]
+
+        # Apply the proper measurement title in the spreadsheet
+        searchColumn = "B"
+        searchString = "Cal Factor1"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                xw.Range(cell).value = pvName1
+                break
+
+        searchColumn = "B"
+        searchString = "CF Start1"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found CF Start Column: {}".format(cell))
+                break
+
+        for i, index in enumerate(verFreq):
+            writeRow = int(startRow) + int(i)
+
+            print("writeRow: {}".format(writeRow))
+            print("index: {}".format(i))
+
+            cell = "B{}".format(writeRow)
+            print("Cell: {}".format(cell))
+            print("I: {}".format(i))
+            xw.Range(cell).value = index
+
+            cell = "C" + str(writeRow)
+            xw.Range(cell).value = verApplied[i]
+
+            cell = "E" + str(writeRow)
+            xw.Range(cell).value = verMsd[i]
+
+            cell = "G" + str(writeRow)
+            xw.Range(cell).value = verError[i]
+
+            cell = "I" + str(writeRow)
+            xw.Range(cell).value = verUnc[i]
+
+            verValue = verLL[i] + " / " + verUL[i]
+            cell = "K" + str(writeRow)
+            xw.Range(cell).value = verValue
+
+            cell = "M" + str(writeRow)
+            xw.Range(cell).value = verPF[i]
+
+            writeRow += 1
+
+            rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+            print("rangeVal: {} ".format(rangeVal))
+            # input()
+            sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
 
     # =========================== Load-in Linearity information =========================================
 
@@ -1524,7 +2002,8 @@ def setCalibrationStandardList(listOfStandards):
         listItem = i.split(",")
         # print("{}\t\t{}\t\t\t{}\t\t\t{}".format(listItem[0],listItem[1],listItem[2],listItem[3]))
         print("{:2}:   {:15}{:30}{:15}{:10}".format(index, listItem[0], listItem[1], listItem[2], listItem[3]))
-    print("")
+    print("==============================================================================")
+    print("\n\n\n\n")
 
     selection = ""
     while selection != "c":
@@ -1606,6 +2085,69 @@ def setCalibrationStandardList(listOfStandards):
 
     return selectedStandards
 
+def checkPowerCalMethod(xmlDataList):
+
+    method1 = "Measure_PowerSensorCalFactor"
+    method2 = "Measure_PowerVerification"
+    method1 =method1.lower()
+    method2 = method2.lower()
+
+    # Test to see if the XML file is a normal / Average calibration template
+    header = "TestSteps"
+    wrapper = "VmlType"
+    subSearch = "average"
+    xmlDataLine = findAndExtractValueFromXML(header, wrapper, xmlDataList, subSearch)
+    value = extractXmlData(xmlDataLine, wrapper)
+
+    if value != "":
+        search1 = True
+    else:
+        search1 = False
+
+    header = "TestSteps"
+    wrapper = "VmlType"
+    subSearch = "average"
+    xmlDataLine = findAndExtractValueFromXML(header, wrapper, xmlDataList, subSearch)
+    value = extractXmlData(xmlDataLine, wrapper)
+
+    if value != "":
+        search2 = True
+    else:
+        search2 = False
+
+    if search1 and search2:
+        return "normal_average_method"
+
+    # Test to see if the XML file is the normal / low path method
+    header = "TestSteps"
+    wrapper = "VmlType"
+    subSearch = "CalFactorLo"
+    xmlDataLine = findAndExtractValueFromXML(header, wrapper, xmlDataList, subSearch)
+    value = extractXmlData(xmlDataLine, wrapper)
+
+    if value != "":
+        search1 = True
+    else:
+        search1 = False
+
+    if search1:
+        return "normalpath_lowpath_method"
+
+    # Test to see if the XML file is the "vanilla" cal factor template type or the power verification method
+    header = "TestSteps"
+    wrapper = "VmlType"
+    subSearch = "CalFactor"
+    xmlDataLine = findAndExtractValueFromXML(header, wrapper, xmlDataList, subSearch)
+    value = extractXmlData(xmlDataLine, wrapper)
+
+    if method1 in value:
+        return "cf_method"
+    elif method2 in value:
+        return "power_ver_method"
+
+    return "unknown_method"
+
+
 # Start Program =================================================================
 # Set initial program variables --------------------
 logFile = "PS-Cal_Corrector_Log.txt"
@@ -1654,8 +2196,10 @@ try:
     writeLog("Location of Cal Factor budget: {}.".format(cfBudgetTxtFile), logFile)
     linBudgetTxtFile = readConfigFile(configFile, "linBudgetTxtFile")
     writeLog("Location of linearity budget: {}.".format(linBudgetTxtFile), logFile)
-    excelTemplateFile = readConfigFile(configFile, "excelTemplateFile", sFunc="")
-    writeLog("Location of excel template file: {}.".format(excelTemplateFile), logFile)
+    excelTemplateCF = readConfigFile(configFile, "CalFactorMethodTemplateFile", sFunc="")
+    writeLog("Location of cal factor excel template file: {}.".format(excelTemplateCF), logFile)
+    # excelTemplateVer = readConfigFile(configFile, "verificationMethodExcelTemplateFile", sFunc="")
+    # writeLog("Location of verification excel template file: {}.".format(excelTemplateVer), logFile)
 except:
     writeLog("Failed to load configuration file variables. Check that the file is present.", logFile)
     exit()
@@ -1676,7 +2220,7 @@ writeLog("Debug flag set to {}.".format(debugBool), logFile)
 print("")
 print("Use the file dialogue window to select the PS-Cal XML to be corrected...")
 if debugBool == True:
-    xmlFile = "debugData.xml"
+    xmlFile = "Keysight N1921A.xml"
     xmlFilePath = cwd + xmlFile
 
     # Split out the xmlFilePath to obtain the xmlFile name itself
@@ -1799,10 +2343,36 @@ while tempBool == True:
     tempCounter+=1
 
 # Backup of the original file
-print("xmlFilePath: {}".format(xmlFilePath))
-print("archiveFilePath: {}".format(archiveFilePath))
 dest = shutil.copyfile(xmlFilePath, archiveFilePath)
 writeLog("Created backup of the original DUT calibration file at: {}.".format(archiveFilePath), logFile)
+
+# Determine which excel template to use
+cfMethod = checkPowerCalMethod(xmlData)
+if cfMethod == "cf_method":
+    excelTemplateFile = excelTemplateCF
+    powerVerName1 = "Cal Factor"
+    powerVerName2 = ""
+    canUseExcel = True
+elif cfMethod == "power_ver_method":
+    excelTemplateFile = excelTemplateCF
+    powerVerName1 = "Power Measurement Accuracy"
+    powerVerName2 = ""
+    canUseExcel = True
+elif cfMethod == "normalpath_lowpath_method":
+    excelTemplateFile = excelTemplateCF
+    powerVerName1 = "Cal Factor Hi"
+    powerVerName2 = "Cal Factor Low"
+    canUseExcel = True
+elif cfMethod == "normal_average_method":
+    excelTemplateFile = excelTemplateCF
+    powerVerName1 = "Cal Factor (Normal)"
+    powerVerName2 = "Cal Factor Low (Average)"
+    canUseExcel = True
+else:
+    print("Template calibration method is not supported for export to excel!")
+    print("Use PS-Cal to open and save the XML data as a PDF")
+    canUseExcel = False
+
 
 # Create a working copy of the Excel Template file for use by this routine
 winTempFolder = tempfile.gettempdir()                       # Gets the windows temporary folder
@@ -1814,9 +2384,11 @@ writeLog("Created backup of the original Excel Template File at: {}.".format(tem
 excelTemplateFile = tempDirectory
 
 # Import Standards List and instruct user to select standards
+writeLog("Importing standards list...", logFile)
 standardsList = imporStdList(configFile)
+writeLog("Loaded the following list of standards: {}.".format(standardsList), logFile)
+writeLog("Prompting user to set list of selected standards...", logFile)
 selectedStandards = setCalibrationStandardList(standardsList)
-
 writeLog("Technician confirmed the following standards list: {}.".format(selectedStandards), logFile)
 
 # ===================================================================================================================
@@ -2349,21 +2921,29 @@ print("")
 # ===================================================================================================================
 #                                  Attempt to export results into Excel template file
 # ===================================================================================================================
-writeLog("Starting Export of Data to Excel Template", logFile)
-writeLog("Using Excel Spreadsheet: {}".format(excelTemplateFile), logFile)
-print("> Attempting to export data to excel template...")
-
-
 
 try:
-    exportXmlToExcel(xmlDataNew, configFile, excelTemplateFile, selectedStandards)
-    print("")
-    print("> Successfully exported data to Excel.")
-    print("")
-    print("==============================================================")
-    print("          - - Use Excel to save data as PDF - -")
-    print("==============================================================")
-    writeLog("Successfully exported data to Excel Template", logFile)
+    if canUseExcel == True:
+        writeLog("Starting Export of Data to Excel Template", logFile)
+        writeLog("Using Excel Spreadsheet: {}".format(excelTemplateFile), logFile)
+        print("> Attempting to export data to excel template...")
+
+        exportXmlToExcel(xmlDataNew, configFile, excelTemplateFile, selectedStandards,cfMethod,powerVerName1,powerVerName2)
+        print("")
+        print("> Successfully exported data to Excel.")
+        print("")
+        print("==============================================================")
+        print("          - - Use Excel to print data as PDF - -")
+        print("==============================================================")
+        writeLog("Successfully exported data to Excel Template", logFile)
+    else:
+        writeLog("canUseExcel: {}".format(canUseExcel), logFile)
+        writeLog("Template not supported for export to Excel", logFile)
+        print("> Current XML file format not supported for Excel support!")
+        print("")
+        print("==============================================================")
+        print("- - Open the XML file in PS-Cal to verify and save as PDF - -")
+        print("==============================================================")
 except:
     writeLog("Failed to write excel data to Excel template", logFile)
     print("")
