@@ -5,16 +5,16 @@ version = 2
 
 # Dependent on Installation of Excel Wings (see data to Excel function)
 # Use "pip install xlwings"
+import scipy.interpolate # Non-native package which must be installed
+# import scipy
 import re
 import math
-# import scipy.interpolate # Non-native
 import os
 import shutil
 import os.path
 from os import path
 from pathlib import Path
 from distutils.dir_util import copy_tree
-
 from tkinter import *
 from tkinter import filedialog
 import tkinter as tk
@@ -247,6 +247,8 @@ def interpolation(yVal,x,y):
     return(y_interp(yVal))
 
 def performInterpolation():
+    # requires writelog function
+    # writeLog("Importing standards list...", logFile) for example...
 
     for index, freq in enumerate(rhoFreqList):
 
@@ -257,9 +259,15 @@ def performInterpolation():
 
             x = rhoFreqList.copy()
 
-            newCFVal = float(interpolation(freq, xVals, yValsCF))
-            newUncVal = interpolation(freq, xVals, yValsUNC)
-            newDbVal = float(interpolation(freq, xVals, yValsDb))
+            try:
+                newCFVal = float(interpolation(freq, xVals, yValsCF))
+                newUncVal = interpolation(freq, xVals, yValsUNC)
+                newDbVal = float(interpolation(freq, xVals, yValsDb))
+            except:
+                writeLog("Could not perform interpolation for frequency {}".format(freq), logFile)
+                newCFVal = cfListNew[index]
+                newUncVal = uncListNew[index]
+                newDbVal = dbListNew[index]
 
             # Take the interpolated uncertainty value and RSS double it
             unc1 = newUncVal ** 2
@@ -797,11 +805,12 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
     xw.Range("C14").value = description
     xw.Range("C15").value = serialNumber
     xw.Range("C16").value = assetNumber
-    xw.Range("M12").value = jobOrderNumber
-    xw.Range("M13").value = calibrationDate
-    xw.Range("M14").value = technician
-    xw.Range("M15").value = calibrationType
-    xw.Range("M16").value = pinDepth
+    xw.Range("C17").value = "PS-Cal Corrected"
+    xw.Range("K12").value = jobOrderNumber
+    xw.Range("K13").value = calibrationDate
+    xw.Range("K14").value = technician
+    xw.Range("K15").value = calibrationType
+    xw.Range("K16").value = pinDepth
 
     # input("Pause:")
 
@@ -1058,92 +1067,92 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
         except:
             print("Known error; move on.")
 
-        # =========================== Configure For Power Verification Method =================================
-        # If the method does not require two cal factor data sets, delete the second data set
-        if calFactorMethod == "power_ver_method":
-            # Delete the second cal factor section out of the excel spreadsheet
-            wb = xw.Book(excelTemplateFile)
-            wb.sheets["Table 1"].activate()
+    # =========================== Configure For Power Verification Method =================================
+    # If the method does not require two cal factor data sets, delete the second data set
+    if calFactorMethod == "power_ver_method":
+        # Delete the second cal factor section out of the excel spreadsheet
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
 
-            sht = wb.sheets["Table 1"]
+        sht = wb.sheets["Table 1"]
 
-            searchColumn = "B"
-            searchString = "Cal Factor1"
-            for i in range(1, 1000, 1):
-                startColumn = i
-                cell = searchColumn + str(i)
-                cellData = xw.Range(cell).value
+        searchColumn = "B"
+        searchString = "Cal Factor1"
+        for i in range(1, 1000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
 
-                if cellData == searchString:
-                    startRow = i
+            if cellData == searchString:
+                startRow = i
 
-                    print("Found {} Section Start Column: {}".format(searchString, cell))
-                    break
+                print("Found {} Section Start Column: {}".format(searchString, cell))
+                break
 
-            endRow = startRow + 6
+        endRow = startRow + 6
 
-            rangeVal = "A" + str(startRow) + ":M" + str(endRow)
-            print("rangeVal: {}".format(rangeVal))
-            try:
-                sht.range(rangeVal).api.delete()
-            except:
-                print("Known error; move on.")
+        rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+        print("rangeVal: {}".format(rangeVal))
+        try:
+            sht.range(rangeVal).api.delete()
+        except:
+            print("Known error; move on.")
 
-            searchColumn = "B"
-            searchString = "Cal Factor2"
-            for i in range(1, 1000, 1):
-                startColumn = i
-                cell = searchColumn + str(i)
-                cellData = xw.Range(cell).value
+        searchColumn = "B"
+        searchString = "Cal Factor2"
+        for i in range(1, 1000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
 
-                if cellData == searchString:
-                    startRow = i
+            if cellData == searchString:
+                startRow = i
 
-                    print("Found {} Section Start Column: {}".format(searchString,cell))
-                    break
+                print("Found {} Section Start Column: {}".format(searchString,cell))
+                break
 
-            endRow = startRow + 6
+        endRow = startRow + 6
 
-            rangeVal = "A" + str(startRow) + ":M" + str(endRow)
-            print("rangeVal: {}".format(rangeVal))
-            try:
-                sht.range(rangeVal).api.delete()
-            except:
-                print("Known error; move on.")
+        rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+        print("rangeVal: {}".format(rangeVal))
+        try:
+            sht.range(rangeVal).api.delete()
+        except:
+            print("Known error; move on.")
 
-            # =========================== Configure For Multi-Path and Average Methods ============================
-            # If the method does not require two cal factor data sets, delete the second data set
-            if calFactorMethod == "normalpath_lowpath_method" or calFactorMethod == "normal_average_method":
-                # Delete the second cal factor section out of the excel spreadsheet
-                wb = xw.Book(excelTemplateFile)
-                wb.sheets["Table 1"].activate()
+    # =========================== Configure For Multi-Path and Average Methods ============================
+    # If the method does not require two cal factor data sets, delete the second data set
+    if calFactorMethod == "normalpath_lowpath_method" or calFactorMethod == "normal_average_method":
+        # Delete the second cal factor section out of the excel spreadsheet
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
 
-                sht = wb.sheets["Table 1"]
+        sht = wb.sheets["Table 1"]
 
-                searchColumn = "B"
-                searchString = "Power Ver1"
-                for i in range(1, 1000, 1):
-                    startColumn = i
-                    cell = searchColumn + str(i)
-                    cellData = xw.Range(cell).value
+        searchColumn = "B"
+        searchString = "Power Ver1"
+        for i in range(1, 1000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
 
-                    if cellData == searchString:
-                        startRow = i
+            if cellData == searchString:
+                startRow = i
 
-                        print("Found {} Section Start Column: {}".format(searchString, cell))
-                        break
+                print("Found {} Section Start Column: {}".format(searchString, cell))
+                break
 
-                endRow = startRow + 6
+        endRow = startRow + 6
 
-                rangeVal = "A" + str(startRow) + ":M" + str(endRow)
-                print("rangeVal: {}".format(rangeVal))
-                try:
-                    sht.range(rangeVal).api.delete()
-                except:
-                    print("Known error; move on.")
+        rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+        print("rangeVal: {}".format(rangeVal))
+        try:
+            sht.range(rangeVal).api.delete()
+        except:
+            print("Known error; move on.")
 
     # =========================== Load in Cal Factor1 information =========================================
-    if calFactorMethod == "cf_method":
+    if calFactorMethod == "cf_method" or calFactorMethod == "normalpath_lowpath_method" or calFactorMethod == "normal_average_method":
         cfFreq = []
         cfMsd = []
         cfUnc = []
@@ -1151,8 +1160,10 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
 
         if calFactorMethod == "cf_method" or calFactorMethod == "normalpath_lowpath_method":
             searchHeader = "CalFactor"
+            exclusionSearchHeader = "calfactorlo"
         elif calFactorMethod == "normal_average_method":
             searchHeader = "CalFactorNormal"
+            exclusionSearchHeader = "Not Required For This Method"
 
         for index, line in enumerate(xmlList):
 
@@ -1162,8 +1173,10 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
             searchHeaderStart = "<" + searchHeader
             currentLine = line.lower()
             extraSearchFilter = "msdata"
+            extraSearchFilter = extraSearchFilter.lower()
+            exclusionSearchHeader = exclusionSearchHeader.lower()
 
-            if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
+            if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine) and not (exclusionSearchHeader in currentLine):
                 # print(currentLine)
                 cfFoundCounter = 0
                 for i in range(1, 20, 1):
@@ -1531,7 +1544,7 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
 
         # Apply the proper measurement title in the spreadsheet
         searchColumn = "B"
-        searchString = "Cal Factor1"
+        searchString = "Power Ver1"
         for i in range(1, 10000, 1):
             startColumn = i
             cell = searchColumn + str(i)
@@ -1542,7 +1555,7 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
                 break
 
         searchColumn = "B"
-        searchString = "CF Start1"
+        searchString = "PV Start"
         for i in range(1, 10000, 1):
             startColumn = i
             cell = searchColumn + str(i)
@@ -1965,7 +1978,8 @@ def setCalibrationStandardList(listOfStandards):
             del standardsList[index]
 
     if len(expiredStandards) > 0:
-        print("true")
+        print("")
+        print("")
         print("==============================================================================")
         print("|                                                                            |")
         print("|                          EXPIRED SYSTEM STANDARDS                          |")
@@ -1991,6 +2005,8 @@ def setCalibrationStandardList(listOfStandards):
         if defaultFlag == "d":
             selectedStandards.append(i)
 
+    print("")
+    print("")
     print("==============================================================================")
     print("|                                                                            |")
     print("|                        CONFIGURED SYSTEM STANDARDS                         |")
@@ -2007,6 +2023,9 @@ def setCalibrationStandardList(listOfStandards):
 
     selection = ""
     while selection != "c":
+        print("")
+        print("")
+        print("")
         print("==============================================================================")
         print("|                                                                            |")
         print("|               SELECTED STANDARDS (used for this calibration)               |")
@@ -2020,7 +2039,7 @@ def setCalibrationStandardList(listOfStandards):
             print("{:2}:   {:15}{:30}{:15}{:10}".format(index, listItem[0], listItem[1], listItem[2], listItem[3]))
 
         print("==============================================================================")
-        selection = input("Please Select (A)dd, (R)emove, or (C)onfirm Selection: ")
+        selection = input("Please (A)dd, (R)emove, or (C)onfirm Selection: ")
         selection = selection.lower()
 
         if selection != "a" and selection != "r" and selection != "c":
@@ -2036,6 +2055,7 @@ def setCalibrationStandardList(listOfStandards):
             print("I really need to get my act together and finish learning how to program GUIs in Python.")
 
         if selection == "a":
+            print("")
             print("==============================================================================")
             print("|                                                                            |")
             print("|                          SYSTEM STANDARDS LIST                             |")
@@ -2051,16 +2071,60 @@ def setCalibrationStandardList(listOfStandards):
 
             selection = -1
             while selection < 0 or selection > index:
-                selection = int(input("Enter the item # of the standard to add (0 through {}): ".format(index)))
-                if selection < 0 or selection > index:
-                    print("You can only choose item number 0 through {}!".format(index))
-                    print("Try again...")
+                selection = input("Enter the item # of the standard to add (0 through {}): ".format(index))
 
-            currentSelectedItem = standardsList[selection]
-            print(currentSelectedItem)
-            selectedStandards.append(currentSelectedItem)
+                # This section handles when the user enters multiple comma seperated values.
+                if "," in selection:
+                    selectionList = selection.split(",")  # Split the CSVs into a list
+
+                    print(selectionList)
+                    # Filter out any value which is not an integer
+                    selectionListFiltered = []  # a list to hold all integer values
+                    for i in selectionList:
+                        value = i.strip()  # Strip out any whitespace
+                        if value.isnumeric():
+                            selectionListFiltered.append(int(value))  # Place integers into the list
+                    print(selectionListFiltered)
+
+                    # Filter out any values which are outside the item list boundaries
+                    selectionList = []
+                    failedInputs = []
+                    for subIndex, i in enumerate(selectionListFiltered):
+                        if i < 0 or i > index:
+                            failedInputs.append(i)
+                        else:
+                            selectionList.append(i)
+                    print(selectionList)
+
+                    # Inform the user of any invalid choices
+                    if len(failedInputs) > 0:
+                        print(
+                            "The following select items were not on the list: {}. All valid items were added to the selected standards list.".format(
+                                failedInputs))
+                        print("You can only choose item number 0 through {}!".format(index))
+
+                    # Apply all valid values, if any
+                    if len(selectionList) == 0:
+                        print("No valid choices entered.")
+                        print("You can only choose item number 0 through {}!".format(index))
+                        print("Try again...")
+                        selection = -1  # Return to the top of the user entry loop
+                    else:
+                        for i in selectionList:
+                            selectedStandards.append(standardsList[i])
+                        selection = 0  # Satisfy the loop end criteria
+                else:
+
+                    selection = int(selection)
+                    if selection < 0 or selection > index:
+                        print("You can only choose item number 0 through {}!".format(index))
+                        print("Try again...")
+                    else:
+                        currentSelectedItem = standardsList[selection]
+                        selectedStandards.append(currentSelectedItem)
 
         if selection == "r":
+            print("")
             print("==============================================================================")
             print("|                                                                            |")
             print("|                        DELETE A SELECTED STANDARDS                         |")
@@ -2076,12 +2140,60 @@ def setCalibrationStandardList(listOfStandards):
 
             selection = -1
             while selection < 0 or selection > index:
-                selection = int(input("Enter the item # of the standard to remove (0 through {}): ".format(index)))
-                if selection < 0 or selection > index:
-                    print("You can only choose item number 0 through {}!".format(index))
-                    print("Try again...")
+                selection = input("Enter the item # of the standard to add (0 through {}): ".format(index))
 
-            del selectedStandards[selection]
+                # This section handles when the user enters multiple comma seperated values.
+                if "," in selection:
+                    selectionList = selection.split(",")  # Split the CSVs into a list
+
+                    print(selectionList)
+                    # Filter out any value which is not an integer
+                    selectionListFiltered = []  # a list to hold all integer values
+                    for i in selectionList:
+                        value = i.strip()  # Strip out any whitespace
+                        if value.isnumeric():
+                            selectionListFiltered.append(int(value))  # Place integers into the list
+                    print(selectionListFiltered)
+
+                    # Filter out any values which are outside the item list boundaries
+                    selectionList = []
+                    failedInputs = []
+                    for subIndex, i in enumerate(selectionListFiltered):
+                        if i < 0 or i > index:
+                            failedInputs.append(i)
+                        else:
+                            selectionList.append(i)
+                    print(selectionList)
+
+                    # Inform the user of any invalid choices
+                    if len(failedInputs) > 0:
+                        print(
+                            "The following select items were not on the list: {}. All valid items were added to the selected standards list.".format(
+                                failedInputs))
+                        print("You can only choose item number 0 through {}!".format(index))
+
+                    # Apply all valid values, if any
+                    if len(selectionList) == 0:
+                        print("No valid choices entered.")
+                        print("You can only choose item number 0 through {}!".format(index))
+                        print("Try again...")
+                        selection = -1  # Return to the top of the user entry loop
+                    else:
+                        selectedStandardsFiltered = []
+                        for subIndex, i in enumerate(selectedStandards):
+                            if not (subIndex in selectionList):
+                                selectedStandardsFiltered.append(selectedStandards[subIndex])
+                        selectedStandards = selectedStandardsFiltered
+
+                        selection = 0  # Satisfy the loop end criteria
+                else:
+
+                    selection = int(selection)
+                    if selection < 0 or selection > index:
+                        print("You can only choose item number 0 through {}!".format(index))
+                        print("Try again...")
+                    else:
+                        del selectedStandards[selection]
 
     return selectedStandards
 
@@ -2213,14 +2325,10 @@ else:
 writeLog("Debug flag set to {}.".format(debugBool), logFile)
 
 # Load XML file for interpolation ---------------------------------------------
-# if debugBool == True:
-#     xmlFile = "test3.XML"
-#     xmlFilePath = cwd + xmlFile
-# else:
 print("")
 print("Use the file dialogue window to select the PS-Cal XML to be corrected...")
 if debugBool == True:
-    xmlFile = "Keysight N1921A.xml"
+    xmlFile = "debugData.xml"
     xmlFilePath = cwd + xmlFile
 
     # Split out the xmlFilePath to obtain the xmlFile name itself
@@ -2366,7 +2474,7 @@ elif cfMethod == "normalpath_lowpath_method":
 elif cfMethod == "normal_average_method":
     excelTemplateFile = excelTemplateCF
     powerVerName1 = "Cal Factor (Normal)"
-    powerVerName2 = "Cal Factor Low (Average)"
+    powerVerName2 = "Cal Factor (Average)"
     canUseExcel = True
 else:
     print("Template calibration method is not supported for export to excel!")
@@ -2929,6 +3037,8 @@ try:
         print("> Attempting to export data to excel template...")
 
         exportXmlToExcel(xmlDataNew, configFile, excelTemplateFile, selectedStandards,cfMethod,powerVerName1,powerVerName2)
+        clear()
+        userInterfaceHeader(programName, version, cwd, logFile)
         print("")
         print("> Successfully exported data to Excel.")
         print("")
@@ -2946,6 +3056,8 @@ try:
         print("==============================================================")
 except:
     writeLog("Failed to write excel data to Excel template", logFile)
+    clear()
+    userInterfaceHeader(programName, version, cwd, logFile)
     print("")
     print("> Failed to write data to Excel template!")
     print("==============================================================")
