@@ -1606,74 +1606,84 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
 
     # =========================== Load-in Linearity information =========================================
 
-    linFound = False
-    linNominal = []
-    linMsd = []
-    linLimits = []
-    linUnc = []
-    linPF = []
-    searchHeader = "Linearity"
-    for index, line in enumerate(xmlList):
+    if PSLC_data_present == True:
+        # If linearity data from the power sensor lin calibration program was loaded, then apply that data
+        linFound = True
+        linNominal = PSLC_nominal
+        linMsd = PSLC_msd
+        linLimits = PSLC_limits
+        linUnc = PSLC_unc
+        linPF = PSLC_PF
+    else:
+        # Search the XML file for linearity data
+        linFound = False
+        linNominal = []
+        linMsd = []
+        linLimits = []
+        linUnc = []
+        linPF = []
+        searchHeader = "Linearity"
+        for index, line in enumerate(xmlList):
 
-        searchHeaderEnd = "</" + searchHeader + ">"
-        searchHeaderEnd = searchHeaderEnd.lower()
-        searchHeader = searchHeader.lower()
-        searchHeaderStart = "<" + searchHeader
-        currentLine = line.lower()
-        extraSearchFilter = "msdata"
+            searchHeaderEnd = "</" + searchHeader + ">"
+            searchHeaderEnd = searchHeaderEnd.lower()
+            searchHeader = searchHeader.lower()
+            searchHeaderStart = "<" + searchHeader
+            currentLine = line.lower()
+            extraSearchFilter = "msdata"
 
-        if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
-            # print(currentLine)
-            cfFoundCounter = 0
-            linFound = True
-            for i in range(1, 20, 1):
-                searchFound = False
+            if (searchHeaderStart in currentLine) and (extraSearchFilter in currentLine):
+                # print(currentLine)
+                cfFoundCounter = 0
+                linFound = True
+                for i in range(1, 20, 1):
+                    searchFound = False
 
-                print(i)
-                innerIndex = index + i
-                data = xmlList[innerIndex].lower()
-                print(data)
+                    print(i)
+                    innerIndex = index + i
+                    data = xmlList[innerIndex].lower()
+                    print(data)
 
-                if (searchHeaderEnd in data) and (cfFoundCounter > 0):
-                    # print("break")
-                    break
+                    if (searchHeaderEnd in data) and (cfFoundCounter > 0):
+                        # print("break")
+                        break
 
-                # print("Before: {}".format(data))
-                searchTerm = "Nominal_Power"
-                searchTerm = searchTerm.lower()
-                if searchTerm in data:
-                    strippedData = extractXmlData(data, searchTerm)
-                    linNominal.append(strippedData)
-                # print("After: {}".format(strippedData))
+                    # print("Before: {}".format(data))
+                    searchTerm = "Nominal_Power"
+                    searchTerm = searchTerm.lower()
+                    if searchTerm in data:
+                        strippedData = extractXmlData(data, searchTerm)
+                        linNominal.append(strippedData)
+                    # print("After: {}".format(strippedData))
 
-                searchTerm = "Measured_Power"
-                searchTerm = searchTerm.lower()
-                # print(data)
-                if searchTerm in data:
-                    print("Found CF")
-                    cfFoundCounter += 1
-                    strippedData = extractXmlData(data, searchTerm)
-                    linMsd.append(strippedData)
+                    searchTerm = "Measured_Power"
+                    searchTerm = searchTerm.lower()
+                    # print(data)
+                    if searchTerm in data:
+                        print("Found CF")
+                        cfFoundCounter += 1
+                        strippedData = extractXmlData(data, searchTerm)
+                        linMsd.append(strippedData)
 
-                searchTerm = "Limits"
-                searchTerm = searchTerm.lower()
-                if searchTerm in data:
-                    strippedData = extractXmlData(data, searchTerm)
-                    linLimits.append(strippedData)
+                    searchTerm = "Limits"
+                    searchTerm = searchTerm.lower()
+                    if searchTerm in data:
+                        strippedData = extractXmlData(data, searchTerm)
+                        linLimits.append(strippedData)
 
-                searchTerm = "Uncertainty"
-                searchTerm = searchTerm.lower()
-                if searchTerm in data:
-                    strippedData = extractXmlData(data, searchTerm)
-                    linUnc.append(strippedData)
+                    searchTerm = "Uncertainty"
+                    searchTerm = searchTerm.lower()
+                    if searchTerm in data:
+                        strippedData = extractXmlData(data, searchTerm)
+                        linUnc.append(strippedData)
 
-                searchTerm = "Pass_Fail"
-                searchTerm = searchTerm.lower()
-                if (searchTerm in data):
-                    print("dB Search Found: {}".format(data))
-                    data = extractXmlData(data, searchTerm)
-                    print("dB data: {}".format(data))
-                    linPF.append(data)
+                    searchTerm = "Pass_Fail"
+                    searchTerm = searchTerm.lower()
+                    if (searchTerm in data):
+                        print("dB Search Found: {}".format(data))
+                        data = extractXmlData(data, searchTerm)
+                        print("dB data: {}".format(data))
+                        linPF.append(data)
 
     print("linNominal: {}".format(linNominal))
     print("linMsd: {}".format(linMsd))
@@ -2127,7 +2137,7 @@ def setCalibrationStandardList(listOfStandards):
             print("")
             print("==============================================================================")
             print("|                                                                            |")
-            print("|                        DELETE A SELECTED STANDARDS                         |")
+            print("|                          DELETE SELECTED STANDARDS                         |")
             print("|                                                                            |")
             print("==============================================================================")
             print("{:2}    {:15}{:30}{:15}{:10}".format(" #", "Model", "Description", "Asset Number", "Cal Due"))
@@ -2259,6 +2269,74 @@ def checkPowerCalMethod(xmlDataList):
 
     return "unknown_method"
 
+def yesNoGUI(questionStr, windowName=""):
+    from tkinter import filedialog
+    import tkinter as tk
+    from tkinter import messagebox
+    from tkinter import ttk
+    import time
+    root = Tk()
+
+    canvas1 = tk.Canvas(root, width=1, height=1)
+    canvas1.pack()
+
+    MsgBox = tk.messagebox.askquestion(windowName, questionStr, icon='warning')
+    if MsgBox == 'yes':
+        # root.destroy()
+        # print(1)
+        response = True
+    else:
+        # tk.messagebox.showinfo('Return', 'You will now return to the application screen')
+        response = False
+
+    # ExitApplication()
+    root.destroy()
+    return response
+
+def inputLinearityCalibrationData(fileDialogueDefaultLocation):
+    # Requires tKinter guiTools.yesNoGUI function
+    check = yesNoGUI("Do you need to import Linearity Program calibration data?")
+
+    PSLC_nominal = []  # List to hold Power Sensor Linearity Cal program nominal values
+    PSLC_msd = []  # List to hold Power Sensor Linearity Cal program measured values
+    PSLC_limits = []  # List to hold Power Sensor Linearity Cal program limit values
+    PSLC_unc = []  # List to hold Power Sensor Linearity Cal program uncertainty values
+    PSLC_PF = []  # List to hold Power Sensor Linearity Cal program Pass/Fail values
+
+    if check == False:
+        return (PSLC_nominal,PSLC_msd,PSLC_limits,PSLC_unc,PSLC_PF)
+
+    linearityDataFilePath = ""
+    while linearityDataFilePath == "":
+        linearityDataFilePath = getFilePath(".dat", initialDir=fileDialogueDefaultLocation, extensionDescription="Linearity Data")
+        if linearityDataFilePath == "":
+            print(">> You must select a linearity calibration data file!")
+
+    # Place contents of linearity data file into list variable
+    f = open(linearityDataFilePath, 'r')
+    calDataList = f.readlines()
+    f.close()
+
+    print(calDataList)
+
+    for index, i in enumerate(calDataList):
+        i = i.strip()
+        calDataList[index] = i
+    print(calDataList)
+
+    for index, line in enumerate(calDataList):
+        lineList = line.split(",")
+        try:
+            PSLC_nominal.append(lineList[0])
+            PSLC_msd.append(lineList[1])
+            PSLC_limits.append(lineList[2])
+            PSLC_unc.append(lineList[3])
+            PSLC_PF.append(lineList[4])
+        except:
+            print("")
+
+    return (PSLC_nominal, PSLC_msd, PSLC_limits, PSLC_unc, PSLC_PF)
+
 
 # Start Program =================================================================
 # Set initial program variables --------------------
@@ -2312,6 +2390,8 @@ try:
     writeLog("Location of cal factor excel template file: {}.".format(excelTemplateCF), logFile)
     # excelTemplateVer = readConfigFile(configFile, "verificationMethodExcelTemplateFile", sFunc="")
     # writeLog("Location of verification excel template file: {}.".format(excelTemplateVer), logFile)
+    linearityCalDataFolder = readConfigFile(configFile, "linearityCalDataFolder")
+    writeLog("Folder location the linearity calibration program data: {}.".format(linearityCalDataFolder), logFile)
 except:
     writeLog("Failed to load configuration file variables. Check that the file is present.", logFile)
     exit()
@@ -2453,6 +2533,22 @@ while tempBool == True:
 # Backup of the original file
 dest = shutil.copyfile(xmlFilePath, archiveFilePath)
 writeLog("Created backup of the original DUT calibration file at: {}.".format(archiveFilePath), logFile)
+
+# Load in calibration data which was captured by the power sensor linearity calibration program, if applicable
+print("Use the file dialogue window to select Linearity calibration data to be appended, if applicable...")
+time.sleep(2)
+PSLC_nominal = []                    # List to hold Power Sensor Linearity Cal program nominal values
+PSLC_msd = []                        # List to hold Power Sensor Linearity Cal program measured values
+PSLC_limits = []                     # List to hold Power Sensor Linearity Cal program limit values
+PSLC_unc = []                        # List to hold Power Sensor Linearity Cal program uncertainty values
+PSLC_PF = []                         # List to hold Power Sensor Linearity Cal program Pass/Fail values
+
+PSLC_nominal, PSLC_msd, PSLC_limits, PSLC_unc, PSLC_PF = inputLinearityCalibrationData(linearityCalDataFolder)
+
+if len(PSLC_nominal) > 0:
+    PSLC_data_present = True
+else:
+    PSLC_data_present = False
 
 # Determine which excel template to use
 cfMethod = checkPowerCalMethod(xmlData)
