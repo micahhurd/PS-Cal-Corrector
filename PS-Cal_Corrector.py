@@ -1,7 +1,7 @@
 # PS-Cal Corrector
 # By Micah Hurd
 programName = "PS-Cal Corrector"
-version = 2
+version = 2.2
 
 # Dependent on Installation of Excel Wings (see data to Excel function)
 # Use "pip install xlwings"
@@ -1927,7 +1927,7 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
             # input()
             sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
     else:
-        # Delete the linearity section out of the excel spreadsheet
+        # Delete the Absolute Power Reference section out of the excel spreadsheet
         wb = xw.Book(excelTemplateFile)
         wb.sheets["Table 1"].activate()
 
@@ -1935,6 +1935,87 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
 
         searchColumn = "B"
         searchString = "Absolute Power Reference"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found Absolute Power Reference Section Start Cell: {}".format(cell))
+                break
+
+        endRow = startRow + 6
+
+        rangeVal = "A" + str(startRow) + ":M" + str(endRow)
+        print("rangeVal: {}".format(rangeVal))
+        try:
+            sht.range(rangeVal).api.delete()
+        except:
+            print("Known error; move on.")
+
+    # =========================== Load-in Zero Set Information ==========================================
+
+    if ZS_data_present == True:
+        # =========================== Insert data into Excel =========================================
+
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
+
+        sht = wb.sheets["Table 1"]
+
+        searchColumn = "B"
+        searchString = "Full Range"
+        for i in range(1, 10000, 1):
+            startColumn = i
+            cell = searchColumn + str(i)
+            cellData = xw.Range(cell).value
+
+            if cellData == searchString:
+                startRow = i
+
+                print("Found Linearity Start Column: {}".format(cell))
+                break
+
+        for i, index in enumerate(ZS_nominal):
+            writeRow = int(startRow) + int(i)
+
+            print("writeRow: {}".format(writeRow))
+            print("index: {}".format(i))
+
+            # cell = "B{}".format(writeRow)
+            # print("Cell: {}".format(cell))
+            # print("I: {}".format(i))
+            # xw.Range(cell).value = index
+
+            cell = "C" + str(writeRow)
+            xw.Range(cell).value = ZS_msd[i]
+
+            cell = "E" + str(writeRow)
+            xw.Range(cell).value = ZS_limits[i]
+
+            cell = "G" + str(writeRow)
+            xw.Range(cell).value = ZS_unc[i]
+
+            cell = "M" + str(writeRow)
+            xw.Range(cell).value = ZS_PF[i]
+
+            writeRow += 1
+
+            rangeVal = "A" + str(writeRow) + ":M" + str(writeRow)
+            print("rangeVal: {} ".format(rangeVal))
+            # input()
+            sht.range(rangeVal).api.Insert(InsertShiftDirection.xlShiftDown)
+    else:
+        # Delete the Zero Set section out of the excel spreadsheet
+        wb = xw.Book(excelTemplateFile)
+        wb.sheets["Table 1"].activate()
+
+        sht = wb.sheets["Table 1"]
+
+        searchColumn = "B"
+        searchString = "Zero Set"
         for i in range(1, 10000, 1):
             startColumn = i
             cell = searchColumn + str(i)
@@ -2304,7 +2385,7 @@ def inputLinearityCalibrationData(fileDialogueDefaultLocation):
     PSLC_PF = []  # List to hold Power Sensor Linearity Cal program Pass/Fail values
 
     if check == False:
-        return (PSLC_nominal,PSLC_msd,PSLC_limits,PSLC_unc,PSLC_PF)
+        return (PSLC_nominal,PSLC_msd,PSLC_limits,PSLC_unc,PSLC_PF,"")
 
     linearityDataFilePath = ""
     while linearityDataFilePath == "":
@@ -2335,7 +2416,46 @@ def inputLinearityCalibrationData(fileDialogueDefaultLocation):
         except:
             print("")
 
-    return (PSLC_nominal, PSLC_msd, PSLC_limits, PSLC_unc, PSLC_PF)
+    return (PSLC_nominal, PSLC_msd, PSLC_limits, PSLC_unc, PSLC_PF, linearityDataFilePath)
+
+def inputZeroSetCalibrationData(zeroSetDataFilePath):
+    # Requires tKinter guiTools.yesNoGUI function
+
+    ZS_nominal = []  # List to hold Power Zero Set Cal data nominal value
+    ZS_msd = []      # List to hold Power Zero Set Cal data measured value
+    ZS_limits = []   # List to hold Power Zero Set Cal data limit value
+    ZS_unc = []      # List to hold Power Zero Set Cal data uncertainty value
+    ZS_PF = []       # List to hold Power Zero Set Cal data Pass/Fail value
+
+    if os.path.isfile(zeroSetDataFilePath):
+        print()
+        # Place contents of linearity data file into list variable
+        f = open(zeroSetDataFilePath, 'r')
+        calDataList = f.readlines()
+        f.close()
+
+        print(calDataList)
+
+        for index, i in enumerate(calDataList):
+            i = i.strip()
+            calDataList[index] = i
+        print(calDataList)
+
+        for index, line in enumerate(calDataList):
+            lineList = line.split(",")
+            try:
+                ZS_nominal.append(lineList[0])
+                ZS_msd.append(lineList[1])
+                ZS_limits.append(lineList[2])
+                ZS_unc.append(lineList[3])
+                ZS_PF.append(lineList[4])
+            except:
+                print("")
+
+        return (ZS_nominal, ZS_msd, ZS_limits, ZS_unc, ZS_PF)
+
+    else:
+        return (ZS_nominal, ZS_msd, ZS_limits, ZS_unc, ZS_PF)
 
 
 # Start Program =================================================================
@@ -2543,12 +2663,39 @@ PSLC_limits = []                     # List to hold Power Sensor Linearity Cal p
 PSLC_unc = []                        # List to hold Power Sensor Linearity Cal program uncertainty values
 PSLC_PF = []                         # List to hold Power Sensor Linearity Cal program Pass/Fail values
 
-PSLC_nominal, PSLC_msd, PSLC_limits, PSLC_unc, PSLC_PF = inputLinearityCalibrationData(linearityCalDataFolder)
+PSLC_nominal, PSLC_msd, PSLC_limits, PSLC_unc, PSLC_PF, linearityDataFilePath = inputLinearityCalibrationData(linearityCalDataFolder)
 
 if len(PSLC_nominal) > 0:
     PSLC_data_present = True
 else:
     PSLC_data_present = False
+
+writeLog("PSLC_data_present: {}.".format(PSLC_data_present), logFile)
+
+# Load in Zero Set calibration data captured by the power sensor linearity calibration program, if applicable
+ZS_nominal = []  # List to hold Power Zero Set Cal data nominal value
+ZS_msd = []      # List to hold Power Zero Set Cal data measured value
+ZS_limits = []   # List to hold Power Zero Set Cal data limit value
+ZS_unc = []      # List to hold Power Zero Set Cal data uncertainty value
+ZS_PF = []       # List to hold Power Zero Set Cal data Pass/Fail value
+
+if PSLC_data_present == True:
+    zeroSetDataFilePath = linearityDataFilePath
+    zeroSetDataFilePath = zeroSetDataFilePath[:-3]
+    zeroSetDataFilePath = zeroSetDataFilePath + "zsc"
+    writeLog("zeroSetDataFilePath: {}.".format(zeroSetDataFilePath), logFile)
+
+    ZS_nominal, ZS_msd, ZS_limits, ZS_unc, ZS_PF = inputZeroSetCalibrationData(zeroSetDataFilePath)
+
+    if len(ZS_nominal) > 0:
+        ZS_data_present = True
+    else:
+        ZS_data_present = False
+
+else:
+    ZS_data_present = False
+
+writeLog("ZS_data_present: {}.".format(ZS_data_present), logFile)
 
 # Determine which excel template to use
 cfMethod = checkPowerCalMethod(xmlData)
