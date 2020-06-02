@@ -1,7 +1,7 @@
 # PS-Cal Corrector
 # By Micah Hurd
 programName = "PS-Cal Corrector"
-version = 2.2
+version = 2.21
 
 # Dependent on Installation of Excel Wings (see data to Excel function)
 # Use "pip install xlwings"
@@ -157,19 +157,19 @@ def yesNoGUI(questionStr, windowName=""):
     root.destroy()
     return response
 
-def getFilePath(extensionType, initialDir="", extensionDescription="", multi=False):
+def getFilePath(extensionType, initialDir="", extensionDescription="", multi=False, windowTitle="Select File"):
     root = Tk()
 
     canvas1 = tk.Canvas(root, width=1, height=1)
     canvas1.pack()
 
     if multi == True:
-        root.filenames = filedialog.askopenfilenames(initialdir=initialDir, title="Select file",
+        root.filenames = filedialog.askopenfilenames(initialdir=initialDir, title=windowTitle,
                                                      filetypes=(
                                                      (extensionDescription, extensionType), ("all files", "*.*")))
         list = root.filenames
     else:
-        root.filename = filedialog.askopenfilename(initialdir=initialDir, title="Select file",
+        root.filename = filedialog.askopenfilename(initialdir=initialDir, title=windowTitle,
                                                    filetypes=(
                                                    (extensionDescription, extensionType), ("all files", "*.*")))
         list = root.filename
@@ -1002,7 +1002,7 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
         xw.Range(cell).value = rhoPhase[i]
 
         cell = "M" + str(writeRow)
-        xw.Range(cell).value = rhoPF[i]
+        xw.Range(cell).value = rhoPF[i].title()
 
         writeRow += 1
 
@@ -1516,6 +1516,7 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
                     searchTerm = searchTerm.lower()
                     if (searchTerm in data):
                         data = extractXmlData(data, searchTerm)
+                        data = data.title()
                         verPF.append(data)
 
                     searchTerm = "Uncertainty"
@@ -1736,7 +1737,7 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
             xw.Range(cell).value = linUnc[i]
 
             cell = "M" + str(writeRow)
-            xw.Range(cell).value = linPF[i]
+            xw.Range(cell).value = linPF[i].title()
 
             writeRow += 1
 
@@ -1856,7 +1857,8 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
                 if (searchTerm in data):
                     print("dB Search Found: {}".format(data))
                     data = extractXmlData(data, searchTerm)
-                    print("dB data: {}".format(data))
+                    data = data.title()
+                    print("PF data: {}".format(data))
                     aprPF.append(data)
 
     print("aprFreq: {}".format(aprFreq))
@@ -1999,7 +2001,7 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
             xw.Range(cell).value = ZS_unc[i]
 
             cell = "M" + str(writeRow)
-            xw.Range(cell).value = ZS_PF[i]
+            xw.Range(cell).value = ZS_PF[i].title()
 
             writeRow += 1
 
@@ -2137,13 +2139,16 @@ def setCalibrationStandardList(listOfStandards):
             print("")
             print("Valid options are (A)dd, (R)emove), or (C)onfirm Selection only!")
             print("i.e. you must enter {}, {}, or {}. So try again...".format("a", "r", "c"))
-            print("")
+            time.sleep(3)
             print(
-                "See, these are the things which I, the programmer, must anticipate; otherwise who knows what crazy nonsense would go on!")
+                "\nSee, these are the things which I, the programmer, must anticipate; otherwise who knows what crazy nonsense would go on!")
+            time.sleep(3)
             print(
                 "Seriously, this simple \"standard selection\" section of code is like, 100 lines long! A lot of it exists")
             print("just to handle user input entry errors.")
-            print("I really need to get my act together and finish learning how to program GUIs in Python.")
+            time.sleep(4)
+            print("\nI really need to get my act together and finish learning how to program GUIs in Python.")
+            time.sleep(2)
 
         if selection == "a":
             print("")
@@ -2164,55 +2169,61 @@ def setCalibrationStandardList(listOfStandards):
             while selection < 0 or selection > index:
                 selection = input("Enter the item # of the standard to add (0 through {}): ".format(index))
 
+                try:
                 # This section handles when the user enters multiple comma seperated values.
-                if "," in selection:
-                    selectionList = selection.split(",")  # Split the CSVs into a list
+                    if "," in selection:
+                        selectionList = selection.split(",")  # Split the CSVs into a list
 
-                    print(selectionList)
-                    # Filter out any value which is not an integer
-                    selectionListFiltered = []  # a list to hold all integer values
-                    for i in selectionList:
-                        value = i.strip()  # Strip out any whitespace
-                        if value.isnumeric():
-                            selectionListFiltered.append(int(value))  # Place integers into the list
-                    print(selectionListFiltered)
-
-                    # Filter out any values which are outside the item list boundaries
-                    selectionList = []
-                    failedInputs = []
-                    for subIndex, i in enumerate(selectionListFiltered):
-                        if i < 0 or i > index:
-                            failedInputs.append(i)
-                        else:
-                            selectionList.append(i)
-                    print(selectionList)
-
-                    # Inform the user of any invalid choices
-                    if len(failedInputs) > 0:
-                        print(
-                            "The following select items were not on the list: {}. All valid items were added to the selected standards list.".format(
-                                failedInputs))
-                        print("You can only choose item number 0 through {}!".format(index))
-
-                    # Apply all valid values, if any
-                    if len(selectionList) == 0:
-                        print("No valid choices entered.")
-                        print("You can only choose item number 0 through {}!".format(index))
-                        print("Try again...")
-                        selection = -1  # Return to the top of the user entry loop
-                    else:
+                        print(selectionList)
+                        # Filter out any value which is not an integer
+                        selectionListFiltered = []  # a list to hold all integer values
                         for i in selectionList:
-                            selectedStandards.append(standardsList[i])
-                        selection = 0  # Satisfy the loop end criteria
-                else:
+                            value = i.strip()  # Strip out any whitespace
+                            if value.isnumeric():
+                                selectionListFiltered.append(int(value))  # Place integers into the list
+                        print(selectionListFiltered)
 
-                    selection = int(selection)
-                    if selection < 0 or selection > index:
-                        print("You can only choose item number 0 through {}!".format(index))
-                        print("Try again...")
+                        # Filter out any values which are outside the item list boundaries
+                        selectionList = []
+                        failedInputs = []
+                        for subIndex, i in enumerate(selectionListFiltered):
+                            if i < 0 or i > index:
+                                failedInputs.append(i)
+                            else:
+                                selectionList.append(i)
+                        print(selectionList)
+
+                        # Inform the user of any invalid choices
+                        if len(failedInputs) > 0:
+                            print(
+                                "The following select items were not on the list: {}. All valid items were added to the selected standards list.".format(
+                                    failedInputs))
+                            print("You can only choose item number 0 through {}!".format(index))
+
+                        # Apply all valid values, if any
+                        if len(selectionList) == 0:
+                            print("No valid choices entered.")
+                            print("You can only choose item number 0 through {}!".format(index))
+                            print("Try again...")
+                            selection = -1  # Return to the top of the user entry loop
+                        else:
+                            for i in selectionList:
+                                selectedStandards.append(standardsList[i])
+                            selection = 0  # Satisfy the loop end criteria
                     else:
-                        currentSelectedItem = standardsList[selection]
-                        selectedStandards.append(currentSelectedItem)
+
+                        selection = int(selection)
+                        if selection < 0 or selection > index:
+                            print("You can only choose item number 0 through {}!".format(index))
+                            print("Try again...")
+                            time.sleep(1)
+                        else:
+                            currentSelectedItem = standardsList[selection]
+                            selectedStandards.append(currentSelectedItem)
+                except:
+                    print("Stop trying to pull a \"Jerral\" and enter a valid selection...\n")
+                    time.sleep(1)
+                    selection = -1
 
         if selection == "r":
             print("")
@@ -2233,58 +2244,64 @@ def setCalibrationStandardList(listOfStandards):
             while selection < 0 or selection > index:
                 selection = input("Enter the item # of the standard to add (0 through {}): ".format(index))
 
-                # This section handles when the user enters multiple comma seperated values.
-                if "," in selection:
-                    selectionList = selection.split(",")  # Split the CSVs into a list
+                try:
+                    # This section handles when the user enters multiple comma seperated values.
+                    if "," in selection:
+                        selectionList = selection.split(",")  # Split the CSVs into a list
 
-                    print(selectionList)
-                    # Filter out any value which is not an integer
-                    selectionListFiltered = []  # a list to hold all integer values
-                    for i in selectionList:
-                        value = i.strip()  # Strip out any whitespace
-                        if value.isnumeric():
-                            selectionListFiltered.append(int(value))  # Place integers into the list
-                    print(selectionListFiltered)
+                        print(selectionList)
+                        # Filter out any value which is not an integer
+                        selectionListFiltered = []  # a list to hold all integer values
+                        for i in selectionList:
+                            value = i.strip()  # Strip out any whitespace
+                            if value.isnumeric():
+                                selectionListFiltered.append(int(value))  # Place integers into the list
+                        print(selectionListFiltered)
 
-                    # Filter out any values which are outside the item list boundaries
-                    selectionList = []
-                    failedInputs = []
-                    for subIndex, i in enumerate(selectionListFiltered):
-                        if i < 0 or i > index:
-                            failedInputs.append(i)
+                        # Filter out any values which are outside the item list boundaries
+                        selectionList = []
+                        failedInputs = []
+                        for subIndex, i in enumerate(selectionListFiltered):
+                            if i < 0 or i > index:
+                                failedInputs.append(i)
+                            else:
+                                selectionList.append(i)
+                        print(selectionList)
+
+                        # Inform the user of any invalid choices
+                        if len(failedInputs) > 0:
+                            print(
+                                "The following select items were not on the list: {}. All valid items were added to the selected standards list.".format(
+                                    failedInputs))
+                            print("You can only choose item number 0 through {}!".format(index))
+
+                        # Apply all valid values, if any
+                        if len(selectionList) == 0:
+                            print("No valid choices entered.")
+                            print("You can only choose item number 0 through {}!".format(index))
+                            print("Try again...")
+                            selection = -1  # Return to the top of the user entry loop
                         else:
-                            selectionList.append(i)
-                    print(selectionList)
+                            selectedStandardsFiltered = []
+                            for subIndex, i in enumerate(selectedStandards):
+                                if not (subIndex in selectionList):
+                                    selectedStandardsFiltered.append(selectedStandards[subIndex])
+                            selectedStandards = selectedStandardsFiltered
 
-                    # Inform the user of any invalid choices
-                    if len(failedInputs) > 0:
-                        print(
-                            "The following select items were not on the list: {}. All valid items were added to the selected standards list.".format(
-                                failedInputs))
-                        print("You can only choose item number 0 through {}!".format(index))
-
-                    # Apply all valid values, if any
-                    if len(selectionList) == 0:
-                        print("No valid choices entered.")
-                        print("You can only choose item number 0 through {}!".format(index))
-                        print("Try again...")
-                        selection = -1  # Return to the top of the user entry loop
+                            selection = 0  # Satisfy the loop end criteria
                     else:
-                        selectedStandardsFiltered = []
-                        for subIndex, i in enumerate(selectedStandards):
-                            if not (subIndex in selectionList):
-                                selectedStandardsFiltered.append(selectedStandards[subIndex])
-                        selectedStandards = selectedStandardsFiltered
 
-                        selection = 0  # Satisfy the loop end criteria
-                else:
-
-                    selection = int(selection)
-                    if selection < 0 or selection > index:
-                        print("You can only choose item number 0 through {}!".format(index))
-                        print("Try again...")
-                    else:
-                        del selectedStandards[selection]
+                        selection = int(selection)
+                        if selection < 0 or selection > index:
+                            print("You can only choose item number 0 through {}!".format(index))
+                            print("Try again...")
+                            time.sleep(1)
+                        else:
+                            del selectedStandards[selection]
+                except:
+                    print("Stop trying to pull a \"Jerral\" and enter a valid selection...\n")
+                    time.sleep(1)
+                    selection = -1
 
     return selectedStandards
 
@@ -2350,30 +2367,6 @@ def checkPowerCalMethod(xmlDataList):
 
     return "unknown_method"
 
-def yesNoGUI(questionStr, windowName=""):
-    from tkinter import filedialog
-    import tkinter as tk
-    from tkinter import messagebox
-    from tkinter import ttk
-    import time
-    root = Tk()
-
-    canvas1 = tk.Canvas(root, width=1, height=1)
-    canvas1.pack()
-
-    MsgBox = tk.messagebox.askquestion(windowName, questionStr, icon='warning')
-    if MsgBox == 'yes':
-        # root.destroy()
-        # print(1)
-        response = True
-    else:
-        # tk.messagebox.showinfo('Return', 'You will now return to the application screen')
-        response = False
-
-    # ExitApplication()
-    root.destroy()
-    return response
-
 def inputLinearityCalibrationData(fileDialogueDefaultLocation):
     # Requires tKinter guiTools.yesNoGUI function
     check = yesNoGUI("Do you need to import Linearity Program calibration data?")
@@ -2389,7 +2382,7 @@ def inputLinearityCalibrationData(fileDialogueDefaultLocation):
 
     linearityDataFilePath = ""
     while linearityDataFilePath == "":
-        linearityDataFilePath = getFilePath(".dat", initialDir=fileDialogueDefaultLocation, extensionDescription="Linearity Data")
+        linearityDataFilePath = getFilePath(".dat", initialDir=fileDialogueDefaultLocation, extensionDescription="Linearity Data", windowTitle="Select Linearity Calibration Data File")
         if linearityDataFilePath == "":
             print(">> You must select a linearity calibration data file!")
 
@@ -2538,7 +2531,7 @@ if debugBool == True:
 else:
     time.sleep(2)
     extensionType = "*.XML"
-    xmlFilePath = getFilePath(extensionType,initialDir=PS_CalResultsFolder,extensionDescription="PSCAL XML")
+    xmlFilePath = getFilePath(extensionType,initialDir=PS_CalResultsFolder,extensionDescription="PSCAL XML", windowTitle="Select DUT PS-Cal XML Calibration Data File")
     writeLog("User selected the following file for correction: {}.".format(xmlFilePath), logFile)
 
     # Split out the xmlFilePath to obtain the xmlFile name itself
@@ -2561,7 +2554,7 @@ if interpReferenceMethod == 2:
         print("Use the file dialogue window to select the XML data file of the standard used for the sensor cal...")
         time.sleep(2)
         extensionType = "*.XML"
-        standardDataFile = getFilePath(extensionType, initialDir=standardsDataFolder, extensionDescription="PSCAL XML")
+        standardDataFile = getFilePath(extensionType, initialDir=standardsDataFolder, extensionDescription="PSCAL XML", windowTitle="Select TEGAM Power Standard XML Calibration Data File")
 
     stdXMLData = readTxtFile(standardDataFile)
     writeLog("User selected the following standard cal data file: {}.".format(standardDataFile), logFile)
@@ -3284,6 +3277,7 @@ try:
         userInterfaceHeader(programName, version, cwd, logFile)
         print("")
         print("> Successfully exported data to Excel.")
+        time.sleep(1)
         print("")
         print("==============================================================")
         print("          - - Use Excel to print data as PDF - -")
@@ -3293,6 +3287,7 @@ try:
         writeLog("canUseExcel: {}".format(canUseExcel), logFile)
         writeLog("Template not supported for export to Excel", logFile)
         print("> Current XML file format not supported for Excel support!")
+        time.sleep(1)
         print("")
         print("==============================================================")
         print("- - Open the XML file in PS-Cal to verify and save as PDF - -")
@@ -3313,10 +3308,12 @@ writeLog("Program output saved to: {}.".format(xmlFilePath), logFile)
 
 
 print("")
+time.sleep(1)
 print("XML Output file saved at: {}".format(xmlFilePath))
 print("")
-
+popupMsg("Program is complete. Press Okay to exit.                                       ", popTitle="Program Complete")
 print("")
+time.sleep(1)
 print("This program will close automatically in 5 seconds...")
 writeLog("Program ended.", logFile)
 time.sleep(5)
