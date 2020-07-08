@@ -1,7 +1,7 @@
 # PS-Cal Corrector
 # By Micah Hurd
 programName = "PS-Cal Corrector"
-version = 2.21
+version = 2.3
 
 # Dependent on Installation of Excel Wings (see data to Excel function)
 # Use "pip install xlwings"
@@ -434,6 +434,14 @@ def extractValueFromXML(firstWrapper, secondWrapper, lineData):
     return (value, outputXMLstring)
 
 def setSigDigits(value,qtySigDigitsRequired):
+    def forceTwoSD(value):
+        value = str(value)
+        length_of_string = len(value)
+
+        if length_of_string == 1:
+            value = value + ".0"
+
+        return value
 
     # Convert value to a string, if it is not one already
     value = str(value)
@@ -467,7 +475,7 @@ def setSigDigits(value,qtySigDigitsRequired):
         else:
             value = float(value)
 
-        return value
+        return forceTwoSD(value)
 
     newValue = value[:stringLength]
 
@@ -495,7 +503,7 @@ def setSigDigits(value,qtySigDigitsRequired):
     if difference == 0:
         newValue = int(newValue)
 
-    return newValue
+    return forceTwoSD(value)
 
 def checkUncBudget(budgetTxtFile,uncVal,uncFreq,uncMsmt=0.0):
     import datetime
@@ -1730,10 +1738,10 @@ def exportXmlToExcel(xmlList,cfgFilename,excelSpreadsheet,standardsList,calFacto
             cell = "C" + str(writeRow)
             xw.Range(cell).value = linMsd[i]
 
-            cell = "E" + str(writeRow)
+            cell = "G" + str(writeRow)
             xw.Range(cell).value = linLimits[i]
 
-            cell = "G" + str(writeRow)
+            cell = "I" + str(writeRow)
             xw.Range(cell).value = linUnc[i]
 
             cell = "M" + str(writeRow)
@@ -2450,6 +2458,124 @@ def inputZeroSetCalibrationData(zeroSetDataFilePath):
     else:
         return (ZS_nominal, ZS_msd, ZS_limits, ZS_unc, ZS_PF)
 
+def guardbandEvaluation(msdValue, limit, msmtUnc, gbMethod=""):
+    # Require global variable "debugBool" = true or false
+    # Requires writeLog function and file "logFile"
+
+    # Guardbanding does not care about the direction of magnitude, so take the absolute value
+    msdValue = abs(msdValue)
+
+    # Perform the guardbanding evaluation
+    gb_Lower_Limit = limit - msmtUnc
+    gb_Upper_Limit = limit + msmtUnc
+
+    # Check for pass undetermined (AKA UGB1)
+    if (msdValue > gb_Lower_Limit) and (msdValue <= limit):
+        # Flag data as being in the gaurdband region
+        gbFlag = True
+        if gbMethod == "17025":
+            pass_fail_flag = "Pass*"
+        elif gbMethod == "Z540.3":
+            pass_fail_flag = "UGB1"
+        else:
+            pass_fail_flag = "Pass*"
+
+    # Check for fail undetermined (AKA UGB2)
+    elif (msdValue > limit) and (msdValue <= gb_Upper_Limit):
+        gbFlag = True
+        if gbMethod == "17025":
+            pass_fail_flag = "Fail*"
+        elif gbMethod == "Z540.3":
+            pass_fail_flag = "UGB2"
+        else:
+            pass_fail_flag = "Fail*"
+
+    else:
+        gbFlag = False
+        pass_fail_flag = "null"
+
+    if debugBool == True:
+        writeLog("msdValue: {}, limit: {}, msmtUnc: {}, gb_Lower_Limit: {}, gb_Upper_Limit: {}, pass_fail_flag: {}".format(msdValue, limit, msmtUnc,gb_Lower_Limit,gb_Upper_Limit,pass_fail_flag),logFile)
+
+    return (gbFlag, pass_fail_flag)
+
+def guardbandEvaluationDoubleSided(msdValue, nominal, tolerance, msmtUnc, gbMethod=""):
+    # Require global variable "debugBool" = true or false
+    # Requires writeLog function and file "logFile"
+
+    # Determine the guardbanding evaluation Limits
+    lower_limit = nominal - tolerance
+    gb_Lower_Limit_UGB1 = nominal - tolerance + msmtUnc
+    gb_Lower_Limit_UGB2 = nominal - tolerance - msmtUnc
+
+    upper_limit = nominal + tolerance
+    gb_Upper_Limit_UGB1 = nominal + tolerance - msmtUnc
+    gb_Upper_Limit_UGB2 = nominal + tolerance + msmtUnc
+
+    # Check for pass undetermined (AKA UGB1)
+    if (msdValue > gb_Upper_Limit_UGB1) and (msdValue <= upper_limit):
+        # Flag data as being in the gaurdband region
+        gbFlag = True
+        if gbMethod == "17025":
+            pass_fail_flag = "Pass*"
+        elif gbMethod == "Z540.3":
+            pass_fail_flag = "UGB1"
+        else:
+            pass_fail_flag = "Pass*"
+
+    # Check for pass undetermined (AKA UGB1)
+    elif (msdValue >= lower_limit) and (msdValue < gb_Lower_Limit_UGB1):
+        # Flag data as being in the gaurdband region
+        gbFlag = True
+        if gbMethod == "17025":
+            pass_fail_flag = "Pass*"
+        elif gbMethod == "Z540.3":
+            pass_fail_flag = "UGB1"
+        else:
+            pass_fail_flag = "Pass*"
+
+    # Check for fail undetermined (AKA UGB2)
+    elif (msdValue > upper_limit) and (msdValue <= gb_Upper_Limit_UGB2):
+        gbFlag = True
+        if gbMethod == "17025":
+            pass_fail_flag = "Fail*"
+        elif gbMethod == "Z540.3":
+            pass_fail_flag = "UGB2"
+        else:
+            pass_fail_flag = "Fail*"
+
+    # Check for fail undetermined (AKA UGB2)
+    elif (msdValue < lower_limit) and (msdValue >= gb_Lower_Limit_UGB2):
+        gbFlag = True
+        if gbMethod == "17025":
+            pass_fail_flag = "Fail*"
+        elif gbMethod == "Z540.3":
+            pass_fail_flag = "UGB2"
+        else:
+            pass_fail_flag = "Fail*"
+
+    else:
+        gbFlag = False
+        pass_fail_flag = "null"
+
+    if debugBool == True:
+        writeLog("msdValue: {}, nominal: {}, tolerance: {}, msmtUnc: {}, gbMethod: {}, lower_limit: {}, gb_Lower_Limit_UGB1: {}, gb_Lower_Limit_UGB2: {}, upper_limit: {}, gb_Upper_Limit_UGB1: {}, gb_Upper_Limit_UGB2: {}, gbFlag: {}, pass_fail_flag: {}".format(msdValue, nominal, tolerance, msmtUnc, gbMethod, lower_limit, gb_Lower_Limit_UGB1, gb_Lower_Limit_UGB2, upper_limit, gb_Upper_Limit_UGB1, gb_Upper_Limit_UGB2, gbFlag, pass_fail_flag),logFile)
+
+    return (gbFlag, pass_fail_flag)
+
+def dBm_to_percent(dBm_initial, dBm_delta):
+    dB = dBm_delta - dBm_initial
+    percent = ((10 ** (dB / 10)) - 1) * 100
+    return percent
+
+def linValueConverter(value):
+
+    value = value.strip()
+    value = value.replace(" ","")
+    index = value.find("(")
+    value = value[:index]
+
+    return float(value)
 
 # Start Program =================================================================
 # Set initial program variables --------------------
@@ -2521,7 +2647,7 @@ writeLog("Debug flag set to {}.".format(debugBool), logFile)
 print("")
 print("Use the file dialogue window to select the PS-Cal XML to be corrected...")
 if debugBool == True:
-    xmlFile = "debugData.xml"
+    xmlFile = "Lin_Test.xml"
     xmlFilePath = cwd + xmlFile
 
     # Split out the xmlFilePath to obtain the xmlFile name itself
@@ -2773,7 +2899,7 @@ for index, line in enumerate(xmlData):
                     value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
                     rhoValue = float(value)
             except:
-                writeLog("Could note parse Rho Measured Value: value at frequency: {} Hz".format(freqValue), logFile)
+                writeLog("Could not parse Rho Measured Value: value at frequency: {} Hz".format(freqValue), logFile)
                 break
 
             try:
@@ -2784,7 +2910,7 @@ for index, line in enumerate(xmlData):
                     value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
                     rhoUnc = float(value)
             except:
-                writeLog("Could note parse Rho Uncertainty value at frequency: {} Hz".format(freqValue), logFile)
+                writeLog("Could not parse Rho Uncertainty value at frequency: {} Hz".format(freqValue), logFile)
                 break
 
             if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
@@ -2848,7 +2974,7 @@ for index, line in enumerate(xmlData):
                     value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
                     cfUnc = float(value)
             except:
-                writeLog("Could note parse CF Uncertainty value at frequency: {} Hz".format(freqValue), logFile)
+                writeLog("Could not parse CF Uncertainty value at frequency: {} Hz".format(freqValue), logFile)
                 break
 
             if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
@@ -2902,7 +3028,7 @@ for index, line in enumerate(xmlData):
                     value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
                     linValue = float(value.replace(",", ""))
             except:
-                writeLog("Could note parse Linearity Measured Power value at frequency: {} Hz".format(freqValue), logFile)
+                writeLog("Could not parse Linearity Measured Power value at frequency: {} Hz".format(freqValue), logFile)
                 break
 
             try:
@@ -2913,7 +3039,7 @@ for index, line in enumerate(xmlData):
                     value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
                     linUnc = float(value)
             except:
-                writeLog("Could note parse Linearity Uncertainty value at frequency: {} Hz".format(freqValue),
+                writeLog("Could not parse Linearity Uncertainty value at frequency: {} Hz".format(freqValue),
                          logFile)
                 break
 
@@ -2957,72 +3083,6 @@ with open(xmlFilePath, 'w') as filehandle:
 
 writeLog("Wrote results of the uncertainty budget lookup to the instrument file at: {}".format(xmlFilePath), logFile)
 print("> Uncertainty lookup completed...")
-print("")
-
-
-
-# ===================================================================================================================
-#                                         Check Significant Figures
-# ===================================================================================================================
-writeLog("Starting check of significant figures", logFile)
-
-# Read-in the XML file data to a list
-xmlDataNew = []
-xmlData = readTxtFile(xmlFilePath)
-
-# Correct Significant Figures in all Uncertainty
-for index, line in enumerate(xmlData):
-
-    searchTerm = "ProcedureName"
-    firstWrapper = "<" + searchTerm + ">"
-    secondWrapper = "</" + searchTerm + ">"
-    if (firstWrapper in line) and (secondWrapper in line):
-        value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
-
-        value = "PS-Cal Corrected"
-
-        outputXMLstring = outputXMLstring.replace("val", value)
-        # print(outputXMLstring)
-        line = outputXMLstring + "\n"
-
-    try:
-        searchTerm = "Rho_Uncertainty"
-        firstWrapper = "<" + searchTerm + ">"
-        secondWrapper = "</" + searchTerm + ">"
-        if (firstWrapper in line) and (secondWrapper in line):
-            value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
-
-            value = str(setSigDigits(value, numberSigDigits))
-
-            outputXMLstring = outputXMLstring.replace("val", value)
-            line = outputXMLstring + "\n"
-    except:
-        writeLog("Rho Uncertainty Significant Digits not corrected at XML file line: ".format(index), logFile)
-
-    try:
-        searchTerm = "Uncertainty"
-        firstWrapper = "<" + searchTerm + ">"
-        secondWrapper = "</" + searchTerm + ">"
-        if (firstWrapper in line) and (secondWrapper in line):
-            value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
-
-            value = str(setSigDigits(value, numberSigDigits))
-
-            outputXMLstring = outputXMLstring.replace("val", value)
-            line = outputXMLstring + "\n"
-    except:
-        writeLog("Cal Factor or Linearity Uncertainty Significant Digits not corrected at XML file line: ".format(index), logFile)
-
-    xmlDataNew.append(line)
-
-# Write the XML data to a file
-with open(xmlFilePath, 'w') as filehandle:
-    for listItem in xmlDataNew:
-        # print(listItem)
-        filehandle.write(listItem)
-
-writeLog("Wrote results of the significant figures correction to the instrument file at: {}".format(xmlFilePath), logFile)
-print("> Quantity of significant digits set to {}".format(numberSigDigits))
 print("")
 
 
@@ -3260,6 +3320,656 @@ writeLog("Wrote interpolated data to XML file at: {}".format(xmlFilePath), logFi
 
 writeLog("CF Interpolation process completed.", logFile)
 print("> Interpolation check completed...")
+print("")
+
+# ===================================================================================================================
+#                                    Perform Guardbanding Check
+# ===================================================================================================================
+writeLog("Started Guardbanding check.", logFile)
+
+# gbMethod = "Z540.3"
+gbMethod = "17025"
+
+for index, line in enumerate(xmlData):
+
+
+    # Do guardbanding evaluation for all Rho data ----------------------------------------------------------------------
+    searchHeaderStart = "<RhoData"
+    searchHeaderEnd = "</RhoData>"
+    if searchHeaderStart in line:
+        writeLog("\/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ CHUNK START \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/", logFile)
+
+        # Obtain all the parameters necessary to perform the uncertainty lookup
+        counter = 0
+        while counter <= 8:
+            counter += 1
+            index2 = index + counter
+            line2 = xmlData[index2]
+            if debugBool == True:
+                writeLog("GB Lookup Line2: {}".format(line2), logFile)
+
+            searchTerm = "Frequency"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+            if (firstWrapper in line2) and (secondWrapper in line2):
+                line2 = line2.replace(",","")
+                # print("line2: {}".format(line2))
+                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                freqValue = float(value.replace(",",""))
+
+            searchTerm = "Rho"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+
+            # if (firstWrapper in line2) and (secondWrapper in line2):
+            #     value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+            #     msdValue = float(value)
+
+            try:
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    msdValue = float(value)
+            except ValueError as errorMsg:
+                writeLog("Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm,freqValue,errorMsg), logFile)
+                break
+
+            try:
+                searchTerm = "Rho_Limit"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    limit = float(value)
+            except ValueError as errorMsg:
+                writeLog("Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm,freqValue,errorMsg), logFile)
+                break
+
+            try:
+                searchTerm = "Rho_Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    msmtUnc = float(value)
+            except ValueError as errorMsg:
+                writeLog("Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm,freqValue,errorMsg), logFile)
+                break
+
+            if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
+                break
+
+        # gbBool, pass_fail_flag = guardbandEvaluation(msdValue, limit, msmtUnc, gbMethod)
+
+        try:
+            # Perform the guardbanding evaluation
+
+            gbBool, pass_fail_flag = guardbandEvaluation(msdValue, limit, msmtUnc, gbMethod)
+        except ValueError as errorMsg:
+            writeLog("Gaurdbanding lookup function call failed for: {} Hz test point. Error: {}".format(freqValue,errorMsg), logFile)
+            gbBool = False
+
+        if gbBool == True:
+            writeLog("Attempting to insert GB flag >{}< for search header >{}< at frequency: {} Hz".format(pass_fail_flag,searchHeaderStart,freqValue), logFile)
+            # Insert the gaurdband flag into the XML list data
+            try:
+                # Apply the GB flag returned by the evaluation
+                counter = 0
+                while counter <= 8:
+                    counter += 1
+                    index2 = index + counter
+                    line2 = xmlData[index2]
+
+                    searchTerm = "Pass_Fail"
+                    firstWrapper = "<" + searchTerm + ">"
+                    secondWrapper = "</" + searchTerm + ">"
+                    if (firstWrapper in line2) and (secondWrapper in line2):
+                        value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                        value = str(pass_fail_flag)
+
+                        outputXMLstring = outputXMLstring.replace("val", value)
+                        line = outputXMLstring + "\n"
+                        xmlData[index2] = line
+                        break
+            except ValueError as errorMsg:
+                writeLog("Failed to insert GB flag >{}< for search header >{}< at frequency: {} Hz. Error: {}".format(pass_fail_flag,searchHeaderStart,freqValue,errorMsg), logFile)
+        else:
+            writeLog("Test Point at {} Hz is not UGB1 or UGB2".format(freqValue),logFile)
+
+        writeLog("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ CHUNK END ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n", logFile)
+
+    # Do guardbanding evaluation for cal factor power evaluation (not always applicable) -------------------------------
+    searchHeaderStart = "<CalFactor"
+    searchHeaderEnd = "</CalFactor>"
+    if searchHeaderStart in line:
+        writeLog("\/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ CHUNK START \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/", logFile)
+        powerCalBool = False
+
+        # Obtain all the parameters necessary to perform the uncertainty lookup
+        counter = 0
+        while counter <= 8:
+            counter += 1
+            index2 = index + counter
+            line2 = xmlData[index2]
+
+            searchTerm = "Frequency"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+            if (firstWrapper in line2) and (secondWrapper in line2):
+                line2 = line2.replace(",", "")
+                # print("line2: {}".format(line2))
+                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                freqValue = float(value.replace(",", ""))
+
+                if debugBool == True:
+                    writeLog("GB Lookup Line2: {}".format(line2), logFile)
+
+            searchTerm = "PercentError"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+
+            if (firstWrapper in line2) and (secondWrapper in line2):
+                # This boolian flag indicates that the current chunk is a cal factor power calibration
+                # Normal cal factors have no limit to evaluate gaurdbanding against
+                powerCalBool = True
+
+                try:
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                    try:
+                        msdValue = float(value)
+                    except ValueError as errorMsg:
+                        writeLog("Could not convert >{}< to float. Error: {}".format(value,errorMsg),logFile)
+
+                except ValueError as errorMsg:
+                    powerCalBool = False
+                    writeLog(
+                        "Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm, freqValue,
+                                                                                                 errorMsg), logFile)
+                    break
+
+            try:
+                searchTerm = "UpperLimit"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                    # Strip the number out of the limits tolerance
+                    filterString = "+/- "
+                    replacementString = "    "
+                    translation = value.maketrans(filterString, replacementString)
+                    # Convert the stripper value to a floating number and set it as the limit
+                    limit = float(value.translate(translation))
+
+            except ValueError as errorMsg:
+                writeLog(
+                    "Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm, freqValue,
+                                                                                             errorMsg), logFile)
+                break
+
+            try:
+                searchTerm = "Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    msmtUnc = float(value)
+            except ValueError as errorMsg:
+                writeLog(
+                    "Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm, freqValue,
+                                                                                             errorMsg), logFile)
+                break
+
+            if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
+                break
+
+        # Perform the guardbanding evaluation
+        if powerCalBool == True:
+            try:
+                gbBool, pass_fail_flag = guardbandEvaluation(msdValue, limit, msmtUnc, gbMethod)
+            except ValueError as errorMsg:
+                writeLog("Gaurdbanding lookup function call failed for: {} dBm test point. Error: {}".format(msdValue,
+                                                                                                             errorMsg),
+                         logFile)
+                gbBool = False
+        else:
+            gbBool = False
+
+        # Spit out some debugging info, if debug is enabled
+        if debugBool == True:
+            writeLog(
+                "gbBool: {}, pass_fail_flag: {}, freqValue: {}, msdValue: {}, limit: {}, msmtUnc: {}, gbMethod: {}".format(
+                    gbBool, pass_fail_flag, freqValue, msdValue, limit, msmtUnc, gbMethod), logFile)
+
+        counter = 0
+        while counter <= 8:
+            counter += 1
+            index2 = index + counter
+            line2 = xmlData[index2]
+
+            if gbBool == True:
+                try:
+                    searchTerm = "Pass_Fail"
+                    firstWrapper = "<" + searchTerm + ">"
+                    secondWrapper = "</" + searchTerm + ">"
+                    if (firstWrapper in line2) and (secondWrapper in line2):
+                        # Apply the GB flag returned by the evaluation
+                        writeLog("Attempting to insert GB flag >{}< for search header >{}< at step: {} dBm".format(
+                            pass_fail_flag, searchHeaderStart, msdValue), logFile)
+
+                        value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                        value = str(pass_fail_flag)
+
+                        outputXMLstring = outputXMLstring.replace("val", value)
+                        line = outputXMLstring + "\n"
+                        xmlData[index2] = line
+                        break
+                except ValueError as errorMsg:
+                    writeLog(
+                        "Failed to insert GB flag >{}< for search header >{}< at power step: {} dBm. Error: {}".format(
+                            pass_fail_flag, searchHeaderStart, msdValue, errorMsg), logFile)
+
+        else:
+            writeLog("Test Point at {} dBm is not UGB1 or UGB2".format(msdValue), logFile)
+
+        writeLog("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ CHUNK END ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n", logFile)
+
+    # Do guardbanding evaluation for all Linearity data ----------------------------------------------------------------
+    searchHeaderStart = "<Linearity"
+    searchHeaderEnd = "</Linearity>"
+    if searchHeaderStart in line:
+        writeLog("\/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ CHUNK START \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/", logFile)
+
+        # Obtain all the parameters necessary to perform the uncertainty lookup
+        counter = 0
+        while counter <= 8:
+            counter += 1
+            index2 = index + counter
+            line2 = xmlData[index2]
+
+
+            searchTerm = "Nominal_Power"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+            if (firstWrapper in line2) and (secondWrapper in line2):
+                line2 = line2.replace(",", "")
+                # print("line2: {}".format(line2))
+                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                nomValue = float(value.replace(",", ""))
+
+                if debugBool == True:
+                    writeLog("GB Lookup Line2: {}".format(line2), logFile)
+
+            searchTerm = "Measured_Power"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+
+            if (firstWrapper in line2) and (secondWrapper in line2):
+
+                try:
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                    try:
+                        msdValue = float(value)
+                    except:
+                        msdValue = linValueConverter(value)
+
+                except ValueError as errorMsg:
+                    writeLog(
+                        "Could not parse >{}< search term at power step: {} dBm. Error: {}".format(searchTerm, nomValue,
+                                                                                                 errorMsg), logFile)
+                    break
+
+            try:
+                searchTerm = "Limits"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                    # Strip the number out of the limits tolerance
+                    filterString = "+/- "
+                    replacementString = "    "
+                    translation = value.maketrans(filterString, replacementString)
+                    # Convert the stripper value to a floating number and set it as the limit
+                    limit = float(value.translate(translation))
+            except ValueError as errorMsg:
+                writeLog(
+                    "Could not parse >{}< search term at power step: {} dBm. Error: {}".format(searchTerm, nomValue,
+                                                                                             errorMsg), logFile)
+                break
+
+            try:
+                searchTerm = "Uncertainty"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    msmtUnc = float(value)
+            except ValueError as errorMsg:
+                writeLog(
+                    "Could not parse >{}< search term at power step: {} dBm. Error: {}".format(searchTerm, nomValue,
+                                                                                             errorMsg), logFile)
+                break
+
+            if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
+                break
+
+
+        # Find the percent of deviation between the nominal power level and the measured power level
+        try:
+            percent_deviation = dBm_to_percent(msdValue, nomValue)
+        except ValueError as errorMsg:
+            writeLog("Function dBm_to_percent failed, inputs {}, {}, error: {}".format(msdValue, nomValue, errorMsg),logFile)
+
+        # Perform the guardbanding evaluation
+        try:
+            gbBool, pass_fail_flag = guardbandEvaluation(percent_deviation, limit, msmtUnc, gbMethod)
+        except ValueError as errorMsg:
+            writeLog("Gaurdbanding lookup function call failed for: {} dBm test point. Error: {}".format(msdValue,
+                                                                                                        errorMsg),
+                     logFile)
+            gbBool = False
+
+
+        # Combine the measured value with the percent of deviation, as a string
+        if percent_deviation > 0:
+            newMsdValue = "{} (+{:0.3f}%)".format(msdValue, percent_deviation)
+        else:
+            newMsdValue = "{} ({:0.3f}%)".format(msdValue,percent_deviation)
+
+        if debugBool == True:
+            writeLog("gbBool: {}, pass_fail_flag: {}, nomValue: {}, msdValue: {}, limit: {}, msmtUnc: {}, gbMethod: {}, percent_deviation: {}, newMsdValue: {}".format(gbBool,pass_fail_flag, nomValue, msdValue, limit, msmtUnc, gbMethod, percent_deviation, newMsdValue),logFile)
+
+        counter = 0
+        while counter <= 8:
+            counter += 1
+            index2 = index + counter
+            line2 = xmlData[index2]
+
+            # For linearity, the updated measured value is inserted into the XML replacing the old formatted value
+            try:
+                searchTerm = "Measured_Power"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                    value = str(newMsdValue)
+
+                    outputXMLstring = outputXMLstring.replace("val", value)
+                    line = outputXMLstring + "\n"
+                    xmlData[index2] = line
+            except ValueError as errorMsg:
+                writeLog("Failed to insert updated measured value >{}< for search header >{}< at power step: {} dBm. Error: {}".format(newMsdValue, searchHeaderStart, msdValue, errorMsg), logFile)
+
+            if gbBool == True:
+                try:
+                    searchTerm = "Pass_Fail"
+                    firstWrapper = "<" + searchTerm + ">"
+                    secondWrapper = "</" + searchTerm + ">"
+                    if (firstWrapper in line2) and (secondWrapper in line2):
+                        # Apply the GB flag returned by the evaluation
+                        writeLog("Attempting to insert GB flag >{}< for search header >{}< at step: {} dBm".format(
+                            pass_fail_flag, searchHeaderStart, msdValue), logFile)
+
+                        value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                        value = str(pass_fail_flag)
+
+                        outputXMLstring = outputXMLstring.replace("val", value)
+                        line = outputXMLstring + "\n"
+                        xmlData[index2] = line
+                        break
+                except ValueError as errorMsg:
+                    writeLog(
+                        "Failed to insert GB flag >{}< for search header >{}< at power step: {} dBm. Error: {}".format(
+                            pass_fail_flag, searchHeaderStart, msdValue, errorMsg), logFile)
+
+        else:
+            writeLog("Test Point at {} dBm is not UGB1 or UGB2".format(msdValue), logFile)
+
+        writeLog("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ CHUNK END ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n", logFile)
+
+    # Do guardbanding evaluation for Internal 50 MHz Reference Check (not always applicable) ---------------------------
+    searchHeaderStart = "<PowerRef"
+    searchHeaderEnd = "</PowerRef>"
+    if searchHeaderStart in line:
+        writeLog("\/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ CHUNK START \/ \/ \/ \/ \/ \/ \/ \/ \/ \/ \/", logFile)
+        refPowerCalBool = False
+
+        # Obtain all the parameters necessary to perform the uncertainty lookup
+        counter = 0
+        while counter <= 8:
+            counter += 1
+            index2 = index + counter
+            line2 = xmlData[index2]
+
+            searchTerm = "Frequency"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+            if (firstWrapper in line2) and (secondWrapper in line2):
+                line2 = line2.replace(",", "")
+                # print("line2: {}".format(line2))
+                value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                freqValue = float(value.replace(",", ""))
+
+                if debugBool == True:
+                    writeLog("GB Lookup Line2: {}".format(line2), logFile)
+
+            searchTerm = "RefPower"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+
+            if (firstWrapper in line2) and (secondWrapper in line2):
+
+                try:
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                    try:
+                        nomValue = float(value)
+                    except ValueError as errorMsg:
+                        writeLog("Could not convert >{}< to float. Error: {}".format(value, errorMsg), logFile)
+
+                except ValueError as errorMsg:
+                    refPowerCalBool = False
+                    writeLog(
+                        "Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm,
+                                                                                                 freqValue,
+                                                                                                 errorMsg), logFile)
+                    break
+
+            searchTerm = "MeasurePower"
+            firstWrapper = "<" + searchTerm + ">"
+            secondWrapper = "</" + searchTerm + ">"
+
+            if (firstWrapper in line2) and (secondWrapper in line2):
+                # This boolian flag indicates that the current chunk is a cal factor power calibration
+                # Normal cal factors have no limit to evaluate gaurdbanding against
+                refPowerCalBool = True
+
+                try:
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                    try:
+                        msdValue = float(value)
+                    except ValueError as errorMsg:
+                        writeLog("Could not convert >{}< to float. Error: {}".format(value, errorMsg), logFile)
+
+                except ValueError as errorMsg:
+                    refPowerCalBool = False
+                    writeLog(
+                        "Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm,
+                                                                                                 freqValue,
+                                                                                                 errorMsg), logFile)
+                    break
+
+            try:
+                searchTerm = "UpperLimit"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                    # Strip the number out of the limits tolerance
+                    filterString = "+/- "
+                    replacementString = "    "
+                    translation = value.maketrans(filterString, replacementString)
+                    # Convert the stripper value to a floating number and set it as the limit
+                    limit = float(value.translate(translation))
+
+            except ValueError as errorMsg:
+                writeLog(
+                    "Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm, freqValue,
+                                                                                             errorMsg), logFile)
+                break
+
+            try:
+                searchTerm = "RefPower_Unc"
+                firstWrapper = "<" + searchTerm + ">"
+                secondWrapper = "</" + searchTerm + ">"
+                if (firstWrapper in line2) and (secondWrapper in line2):
+                    value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+                    msmtUnc = float(value)
+            except ValueError as errorMsg:
+                refPowerCalBool = False
+                writeLog(
+                    "Could not parse >{}< search term at frequency: {} Hz. Error: {}".format(searchTerm, freqValue,
+                                                                                             errorMsg), logFile)
+                break
+
+            if (searchHeaderEnd in line2) and not (searchHeaderStart in line2):
+                break
+
+
+
+        # Perform the guardbanding evaluation
+        if refPowerCalBool == True:
+            tolerance = limit - nomValue
+            try:
+                gbBool, pass_fail_flag = guardbandEvaluationDoubleSided(msdValue, nomValue, tolerance, msmtUnc)
+            except ValueError as errorMsg:
+                writeLog(
+                    "Gaurdbanding lookup function call failed for: {} dBm test point. Error: {}".format(msdValue,
+                                                                                                        errorMsg),
+                    logFile)
+                gbBool = False
+        else:
+            gbBool = False
+
+        # Spit out some debugging info, if debug is enabled
+        if debugBool == True:
+            writeLog(
+                "gbBool: {}, pass_fail_flag: {}, freqValue: {}, msdValue: {}, limit: {}, msmtUnc: {}, gbMethod: {}".format(
+                    gbBool, pass_fail_flag, freqValue, msdValue, limit, msmtUnc, gbMethod), logFile)
+
+        counter = 0
+        while counter <= 8:
+            counter += 1
+            index2 = index + counter
+            line2 = xmlData[index2]
+
+            if gbBool == True:
+                try:
+                    searchTerm = "Pass_Fail"
+                    firstWrapper = "<" + searchTerm + ">"
+                    secondWrapper = "</" + searchTerm + ">"
+                    if (firstWrapper in line2) and (secondWrapper in line2):
+                        # Apply the GB flag returned by the evaluation
+                        writeLog("Attempting to insert GB flag >{}< for search header >{}< at step: {} dBm".format(
+                            pass_fail_flag, searchHeaderStart, msdValue), logFile)
+
+                        value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line2)
+
+                        value = str(pass_fail_flag)
+
+                        outputXMLstring = outputXMLstring.replace("val", value)
+                        line = outputXMLstring + "\n"
+                        xmlData[index2] = line
+                        break
+                except ValueError as errorMsg:
+                    writeLog(
+                        "Failed to insert GB flag >{}< for search header >{}< at power step: {} dBm. Error: {}".format(
+                            pass_fail_flag, searchHeaderStart, msdValue, errorMsg), logFile)
+
+        else:
+            writeLog("Test Point at {} dBm is not UGB1 or UGB2".format(msdValue), logFile)
+
+        writeLog("^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ CHUNK END ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^\n", logFile)
+
+# Write the gaurdbanded XML data to the XML file
+with open(xmlFilePath, 'w') as filehandle:
+    for listItem in xmlData:
+        # print(listItem)
+        filehandle.write(listItem)
+
+writeLog("Wrote results of the gaurdband check to the instrument file at: {}".format(xmlFilePath),
+         logFile)
+
+# ===================================================================================================================
+#                                         Check Significant Figures
+# ===================================================================================================================
+writeLog("Starting check of significant figures", logFile)
+
+# Read-in the XML file data to a list
+xmlDataNew = []
+xmlData = readTxtFile(xmlFilePath)
+
+# Correct Significant Figures in all Uncertainty
+for index, line in enumerate(xmlData):
+
+    searchTerm = "ProcedureName"
+    firstWrapper = "<" + searchTerm + ">"
+    secondWrapper = "</" + searchTerm + ">"
+    if (firstWrapper in line) and (secondWrapper in line):
+        value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
+
+        value = "PS-Cal Corrected"
+
+        outputXMLstring = outputXMLstring.replace("val", value)
+        # print(outputXMLstring)
+        line = outputXMLstring + "\n"
+
+    try:
+        searchTerm = "Rho_Uncertainty"
+        firstWrapper = "<" + searchTerm + ">"
+        secondWrapper = "</" + searchTerm + ">"
+        if (firstWrapper in line) and (secondWrapper in line):
+            value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
+
+            value = str(setSigDigits(value, numberSigDigits))
+
+            outputXMLstring = outputXMLstring.replace("val", value)
+            line = outputXMLstring + "\n"
+    except:
+        writeLog("Rho Uncertainty Significant Digits not corrected at XML file line: ".format(index), logFile)
+
+    try:
+        searchTerm = "Uncertainty"
+        firstWrapper = "<" + searchTerm + ">"
+        secondWrapper = "</" + searchTerm + ">"
+        if (firstWrapper in line) and (secondWrapper in line):
+            value, outputXMLstring = extractValueFromXML(firstWrapper, secondWrapper, line)
+
+            value = str(setSigDigits(value, numberSigDigits))
+
+            outputXMLstring = outputXMLstring.replace("val", value)
+            line = outputXMLstring + "\n"
+    except:
+        writeLog("Cal Factor or Linearity Uncertainty Significant Digits not corrected at XML file line: ".format(index), logFile)
+
+    xmlDataNew.append(line)
+
+# Write the XML data to a file
+with open(xmlFilePath, 'w') as filehandle:
+    for listItem in xmlDataNew:
+        # print(listItem)
+        filehandle.write(listItem)
+
+writeLog("Wrote results of the significant figures correction to the instrument file at: {}".format(xmlFilePath), logFile)
+print("> Quantity of significant digits set to {}".format(numberSigDigits))
 print("")
 
 # ===================================================================================================================
